@@ -19,22 +19,25 @@ class Pipeline:
             # model.eval()
 
     @classmethod
-    def from_pretrained(cls, path: str, config_file: str = "pipeline.json") -> "Pipeline":
+    def from_pretrained(cls, path: str, config_file: str = "pipeline.json", args: dict = None) -> "Pipeline":
         """
         Load a pretrained model.
+
+        args: pipeline args to use instead of reading `config_file` (Comfy-Org single files).
         """
         import os
         import json
-        is_local = os.path.exists(f"{path}/{config_file}")
+        if args is None:
+            is_local = os.path.exists(f"{path}/{config_file}")
 
-        if is_local:
-            config_file = f"{path}/{config_file}"
-        else:
-            from huggingface_hub import hf_hub_download
-            config_file = hf_hub_download(path, config_file)
+            if is_local:
+                config_file = f"{path}/{config_file}"
+            else:
+                from huggingface_hub import hf_hub_download
+                config_file = hf_hub_download(path, config_file)
 
-        with open(config_file, 'r') as f:
-            args = json.load(f)['args']
+            with open(config_file, 'r') as f:
+                args = json.load(f)['args']
 
         _models = {}
         for k, v in args['models'].items():

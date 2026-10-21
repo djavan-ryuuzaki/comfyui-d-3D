@@ -200,14 +200,18 @@ class Trellis2ImageTo3DPipeline(Pipeline):
             torch.cuda.empty_cache()
 
     @classmethod
-    def from_pretrained(cls, path: str, config_file: str = "pipeline.json", keep_models_loaded = True, use_fp8 = False, use_reconviagen = False, isPixal3D = False, isPixal3DMV = False) -> "Trellis2ImageTo3DPipeline":
+    def from_pretrained(cls, path: str, config_file: str = "pipeline.json", keep_models_loaded = True, use_fp8 = False, use_reconviagen = False, isPixal3D = False, isPixal3DMV = False, comfy_args: dict = None, dino_model_path: str = None) -> "Trellis2ImageTo3DPipeline":
         """
         Load a pretrained model.
 
         Args:
             path (str): The path to the model. Can be either local path or a Hugging Face repository.
+            comfy_args (dict): Pipeline args built from Comfy-Org single files (see comfy_int8.build_pipeline_args).
+            dino_model_path (str): DINOv3 folder or .safetensors file to use instead of models/facebook/dinov3-vitl16-pretrain-lvd1689m.
         """
-        if use_reconviagen:
+        if comfy_args is not None:
+            pass  # the args come from the Comfy-Org files, there is no config file to pick
+        elif use_reconviagen:
             config_file = "reconviagen_pipeline.json"
         elif use_fp8:
             config_file = "pipeline_fp8.json"
@@ -216,7 +220,7 @@ class Trellis2ImageTo3DPipeline(Pipeline):
             # ckpts/*_mv in the same repo; this config file is what points at them.
             config_file = "pipeline_mv.json"
             
-        pipeline = super().from_pretrained(path, config_file)
+        pipeline = super().from_pretrained(path, config_file, args=comfy_args)
         args = pipeline._pretrained_args
 
         pipeline.sparse_structure_sampler = getattr(samplers, args['sparse_structure_sampler']['name'])(**args['sparse_structure_sampler']['args'])
@@ -252,11 +256,12 @@ class Trellis2ImageTo3DPipeline(Pipeline):
         pipeline.use_fp8 = use_fp8
         pipeline.isPixal3D = isPixal3D
         pipeline.isPixal3DMV = isPixal3DMV
+        pipeline.is_comfy_files = comfy_args is not None
 
-        if not isPixal3D:
+        if not isPixal3D and comfy_args is None:
             pipeline._pretrained_args['models']['sparse_structure_decoder'] = os.path.join(folder_paths.models_dir,"microsoft","TRELLIS-image-large","ckpts","ss_dec_conv3d_16l8_fp16")
             
-        facebook_model_path = os.path.join(folder_paths.models_dir,"facebook","dinov3-vitl16-pretrain-lvd1689m")
+        facebook_model_path = dino_model_path or os.path.join(folder_paths.models_dir,"facebook","dinov3-vitl16-pretrain-lvd1689m")
         pipeline._pretrained_args['image_cond_model']['args']['model_name'] = facebook_model_path           
     
         pipeline.PIXAL3D_IMAGE_COND_CONFIGS["ss"]["model_name"] = facebook_model_path
@@ -293,7 +298,6 @@ class Trellis2ImageTo3DPipeline(Pipeline):
             snapshot_download(
                 repo_id=model_name,
                 local_dir=moge_model_path,
-                local_dir_use_symlinks=False,
             )
         
         moge_model_path = os.path.join(moge_model_path,'model.pt')
@@ -597,7 +601,6 @@ class Trellis2ImageTo3DPipeline(Pipeline):
                     repo_id='microsoft/TRELLIS.2-4B',
                     filename=f'ckpts/shape_enc_next_dc_f16c32_fp16.{ext}',
                     local_dir=trellis2_dir,
-                    local_dir_use_symlinks=False,
                 )
         return fallback
 

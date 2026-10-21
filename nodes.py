@@ -397,7 +397,6 @@ class Trellis2LoadModel:
             snapshot_download(
                 repo_id=modelname,
                 local_dir=model_path,
-                local_dir_use_symlinks=False,
             )
         elif pixal3d_multiview and not os.path.exists(os.path.join(model_path,'pipeline_mv.json')):
             # A Pixal3D folder downloaded before the multi-view release has no
@@ -408,7 +407,6 @@ class Trellis2LoadModel:
             snapshot_download(
                 repo_id=modelname,
                 local_dir=model_path,
-                local_dir_use_symlinks=False,
             )
 
         reconviagen_pipeline_file = os.path.join(folder_paths.models_dir,'microsoft','TRELLIS.2-4B','reconviagen_pipeline.json')
@@ -435,7 +433,6 @@ class Trellis2LoadModel:
                     repo_id=repo_id,
                     filename=fname,
                     local_dir=target_dir,
-                    local_dir_use_symlinks=False,
                 )
                 print(f"{fname} -> {downloaded_path}")            
         
@@ -566,6 +563,109 @@ class Trellis2LoadModel:
         
         return (pipeline,)
         
+class Trellis2LoadModelComfy:
+    """
+    Loads the Comfy-Org repackaged TRELLIS.2 / Pixal3D files (int8_convrot or bf16)
+    that ComfyUI's native 3D nodes use, and returns the same pipeline as
+    Trellis2LoadModel, so every other node of this pack works with them.
+    """
+    @classmethod
+    def INPUT_TYPES(s):
+        diffusion_models = [f for f in folder_paths.get_filename_list("diffusion_models") if "trellis" in f.lower() or "pixal3d" in f.lower()]
+        vaes = [f for f in folder_paths.get_filename_list("vae") if "trellis" in f.lower()]
+        dinos = ["auto (download facebook/dinov3)"] + [f for f in folder_paths.get_filename_list("clip_vision") if "dino" in f.lower()]
+        import importlib.util
+        attn_default = "flash_attn_3" if importlib.util.find_spec("flash_attn_interface") is not None else "sdpa"
+        return {
+            "required": {
+                "diffusion_model": (diffusion_models or ["trellis_2_int8_convrot.safetensors"], {"tooltip": "models/diffusion_models: trellis_2_*, pixal3d_* or pixal3d_multiview_*"}),
+                "shape_vae": (vaes or ["trellis_2_shape_vae_bf16.safetensors"], {"default": "trellis_2_shape_vae_bf16.safetensors"}),
+                "texture_vae": (vaes or ["trellis_2_texture_vae_bf16.safetensors"], {"default": "trellis_2_texture_vae_bf16.safetensors"}),
+                "dino_model": (dinos, {"default": "dino_v3_vit_l.safetensors" if "dino_v3_vit_l.safetensors" in dinos else dinos[0], "tooltip": "models/clip_vision: dino_v3_vit_l or dino_v3_L_naf_fp32 (the NAF part is not used)"}),
+                "backend": (["flash_attn","xformers","sdpa","flash_attn_3"],{"default":attn_default}),
+                "device": (["cpu","cuda"],{"default":"cuda"}),
+                "low_vram": ("BOOLEAN",{"default":True}),
+                "keep_models_loaded": ("BOOLEAN", {"default":True}),
+                "conv_backend": (["spconv","torchsparse","flex_gemm"],{"default":"flex_gemm"}),
+                "sparse_backend": (["xformers","flash_attn","flash_attn_3","sdpa"],{"default":attn_default,"tooltip":"sdpa needs no extra package (slower)"}),
+                "pixal3d_multiview": (["auto","on","off"],{"default":"auto","tooltip":"Pixal3D only. auto = on when the file name contains 'multiview'"}),
+            }
+        }
+
+    RETURN_TYPES = ("TRELLIS2PIPELINE", )
+    RETURN_NAMES = ("pipeline", )
+    FUNCTION = "process"
+    CATEGORY = "Trellis2Wrapper"
+    OUTPUT_NODE = True
+
+    def process(self, diffusion_model, shape_vae, texture_vae, dino_model, backend, device, low_vram, keep_models_loaded, conv_backend, sparse_backend, pixal3d_multiview):
+        from .trellis2 import comfy_int8
+
+        os.environ['OPENCV_IO_ENABLE_OPENEXR'] = '1'
+        os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+        os.environ['ATTN_BACKEND'] = backend
+
+        config.set_backend(backend)
+        sparseconfig.set_attn_backend(sparse_backend)
+        sparseconfig.set_conv_backend(conv_backend)
+
+        reset_cuda()
+
+        torch.backends.cudnn.benchmark = False
+
+        info = comfy_int8.detect_diffusion_file(comfy_int8.resolve_file("diffusion_models", diffusion_model))
+        if not info['has_shape_512'] or not info['has_tex']:
+            raise Exception(f"{diffusion_model} is not a full TRELLIS.2 / Pixal3D checkpoint (structure, img2shape_512, img2shape and shape2txt)")
+        isPixal3D = info['is_pixal3d']
+
+        if pixal3d_multiview == "auto":
+            isPixal3DMV = isPixal3D and "multiview" in diffusion_model.lower()
+        else:
+            isPixal3DMV = pixal3d_multiview == "on"
+        if isPixal3DMV and not isPixal3D:
+            raise Exception('pixal3d_multiview only applies to the Pixal3D files')
+
+        if dino_model.startswith("auto"):
+            dino_model_path = None
+            Trellis2LoadModelComfy.download_dinov3()
+        else:
+            dino_model_path = folder_paths.get_full_path("clip_vision", dino_model)
+
+        comfy_args = comfy_int8.build_pipeline_args(diffusion_model, shape_vae, texture_vae, isPixal3D)
+        print(f"[Trellis2] {diffusion_model}: {'Pixal3D' if isPixal3D else 'TRELLIS.2'}{' multi-view' if isPixal3DMV else ''}, {'int8' if info['is_int8'] else 'unquantized'}")
+
+        pipeline = Trellis2ImageTo3DPipeline.from_pretrained(
+            os.path.join(folder_paths.models_dir, "diffusion_models"),
+            keep_models_loaded = keep_models_loaded,
+            isPixal3D = isPixal3D,
+            isPixal3DMV = isPixal3DMV,
+            comfy_args = comfy_args,
+            dino_model_path = dino_model_path,
+        )
+        pipeline.low_vram = low_vram
+
+        if device=="cuda":
+            if low_vram:
+                pipeline.cuda()
+            else:
+                pipeline.to(device)
+        else:
+            pipeline.to(device)
+
+        return (pipeline,)
+
+    @staticmethod
+    def download_dinov3():
+        target_dir = os.path.join(folder_paths.models_dir, "facebook", "dinov3-vitl16-pretrain-lvd1689m")
+        if os.path.exists(os.path.join(target_dir, "model.safetensors")):
+            return
+        print('Downloading dinov3 model files ...')
+        from huggingface_hub import hf_hub_download
+        os.makedirs(target_dir, exist_ok=True)
+        os.environ.setdefault("HF_HUB_ENABLE_HF_TRANSFER", "1")
+        for fname in ["model.safetensors", "config.json", "preprocessor_config.json"]:
+            hf_hub_download(repo_id="visualbruno/dinov3-vitl16-pretrain-lvd1689m", filename=fname, local_dir=target_dir)
+
 class Trellis2MeshWithVoxelGenerator:
     @classmethod
     def INPUT_TYPES(s):
@@ -8507,6 +8607,7 @@ class Trellis2StringToFile3D:
 
 NODE_CLASS_MAPPINGS = {
     "Trellis2LoadModel": Trellis2LoadModel,
+    "Trellis2LoadModelComfy": Trellis2LoadModelComfy,
     "Trellis2MeshWithVoxelGenerator": Trellis2MeshWithVoxelGenerator,
     "Trellis2LoadImageWithTransparency": Trellis2LoadImageWithTransparency,
     "Trellis2SimplifyMesh": Trellis2SimplifyMesh,
@@ -8591,6 +8692,7 @@ NODE_CLASS_MAPPINGS = {
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "Trellis2LoadModel": "Trellis2 - LoadModel",
+    "Trellis2LoadModelComfy": "Trellis2 - LoadModel (Comfy-Org int8 / bf16 files)",
     "Trellis2MeshWithVoxelGenerator": "Trellis2 - Mesh With Voxel Generator",
     "Trellis2LoadImageWithTransparency": "Trellis2 - Load Image with Transparency",
     "Trellis2SimplifyMesh": "Trellis2 - Simplify Mesh",

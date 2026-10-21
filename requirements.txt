@@ -6,3 +6,6 @@ scipy
 open3d
 plotly
 rembg
+trimesh
+plyfile
+easydict

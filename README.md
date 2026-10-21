@@ -1,3 +1,39 @@
+# comfyui-d-3D
+
+Fork of [visualbruno/ComfyUI-Trellis2](https://github.com/visualbruno/ComfyUI-Trellis2) that also runs on the
+**Comfy-Org int8 / bf16 single-file models** (the ones used by ComfyUI's native TRELLIS.2 / Pixal3D nodes) and ships
+wheels for **Python 3.13 + PyTorch 2.12 + CUDA 13.2** on Windows.
+
+## What's new in this fork
+
+- New node **"Trellis2 - LoadModel (Comfy-Org int8 / bf16 files)"**. It returns the same `TRELLIS2PIPELINE`, so every other node of the pack works unchanged.
+  - `diffusion_model` (models/diffusion_models): `trellis_2_int8_convrot`, `pixal3d_int8_convrot`, `pixal3d_multiview_int8_convrot` or their `_bf16` versions. TRELLIS.2 vs Pixal3D is detected from the file; multi-view is detected from the file name (or forced with `pixal3d_multiview`).
+  - `shape_vae` / `texture_vae` (models/vae): `trellis_2_shape_vae_bf16`, `trellis_2_texture_vae_bf16`.
+  - `dino_model` (models/clip_vision): `dino_v3_vit_l` or `dino_v3_L_naf_fp32`, or `auto` to download facebook/dinov3 as before.
+  - int8 ConvRot layers stay int8 in VRAM (~1.3 GB per denoiser) and run through `comfy_kitchen`, which ships with ComfyUI.
+- Works with transformers 5.x and huggingface_hub 1.x.
+- Comfy-Org ships a single texture denoiser, so the `512` texture stage reuses it (same as the Pixal3D path). ReconViaGen and the FP8 models still need the original `Trellis2 - LoadModel` node.
+
+Model files: [Comfy-Org/TRELLIS.2](https://huggingface.co/Comfy-Org/TRELLIS.2) and [Comfy-Org/Pixal3D](https://huggingface.co/Comfy-Org/Pixal3D).
+
+### Wheels for Python 3.13 / Torch 2.12 / CUDA 13.2 (Windows)
+
+In `wheels/Windows/Torch2120/CUDA 13.2`, built for sm_75 to sm_120 (RTX 20xx to RTX 50xx):
+
+```bash
+cd ComfyUI_windows_portable
+python_embeded\python.exe -m pip install "ComfyUI\custom_nodes\comfyui-d-3D\wheels\Windows\Torch2120\CUDA 13.2\flex_gemm-1.0.0-cp313-cp313-win_amd64.whl"
+python_embeded\python.exe -m pip install "ComfyUI\custom_nodes\comfyui-d-3D\wheels\Windows\Torch2120\CUDA 13.2\cumesh-1.0-cp313-cp313-win_amd64.whl"
+python_embeded\python.exe -m pip install "ComfyUI\custom_nodes\comfyui-d-3D\wheels\Windows\Torch2120\CUDA 13.2\o_voxel-0.0.1-cp313-cp313-win_amd64.whl"
+python_embeded\python.exe -m pip install "ComfyUI\custom_nodes\comfyui-d-3D\wheels\Windows\Torch2120\CUDA 13.2\nvdiffrast-0.4.0-cp313-cp313-win_amd64.whl"
+python_embeded\python.exe -m pip install "ComfyUI\custom_nodes\comfyui-d-3D\wheels\Windows\Torch2120\CUDA 13.2\nvdiffrec_render-0.0.0-cp313-cp313-win_amd64.whl"
+python_embeded\python.exe -m pip install -r ComfyUI\custom_nodes\comfyui-d-3D\requirements.txt
+```
+
+Sources, commits and the patches needed for CUDA 13.2 are in `wheels/Windows/Torch2120/CUDA 13.2/BUILD.md`.
+
+---
+
 # 🌀 ComfyUI Wrapper for [https://github.com/microsoft/TRELLIS.2](https://github.com/microsoft/TRELLIS.2)
 
 ---

@@ -50,6 +50,10 @@ def from_pretrained(path: str, **kwargs):
     import os
     import json
     from safetensors.torch import load_file
+    from .. import comfy_int8
+    if comfy_int8.is_source(path):
+        return comfy_int8.load_model(path, **kwargs)
+
     is_local = os.path.exists(f"{path}.json") and os.path.exists(f"{path}.safetensors")
 
     if is_local:

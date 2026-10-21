@@ -12,6 +12,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import transforms
 from transformers import DINOv3ViTModel
+from ....comfy_int8 import load_dinov3
 import numpy as np
 from PIL import Image, ImageDraw
 
@@ -478,7 +479,7 @@ class DinoV3ProjFeatureExtractor(nn.Module):
             self.naf_target_size = tuple(naf_target_size)
         
         # Load DINOv3 model (frozen, no trainable params in this module)
-        self.model = DINOv3ViTModel.from_pretrained(model_name)
+        self.model = load_dinov3(model_name)
         self.model.eval()
         self.model.requires_grad_(False)
         
@@ -1080,7 +1081,7 @@ class DinoV3VaeProjFeatureExtractor(nn.Module):
         self.grid_resolution = grid_resolution
         
         # --- DINOv3 backbone (frozen) ---
-        self.dino_model = DINOv3ViTModel.from_pretrained(dino_model_name)
+        self.dino_model = load_dinov3(dino_model_name)
         self.dino_model.eval()
         self.dino_model.requires_grad_(False)
         

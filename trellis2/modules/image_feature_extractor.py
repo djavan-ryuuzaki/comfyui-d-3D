@@ -3,6 +3,7 @@ import torch
 import torch.nn.functional as F
 from torchvision import transforms
 from transformers import DINOv3ViTModel
+from ..comfy_int8 import load_dinov3
 import numpy as np
 from PIL import Image
 
@@ -62,7 +63,7 @@ class DinoV3FeatureExtractor:
     """
     def __init__(self, model_name: str, image_size=2048):
         self.model_name = model_name
-        self.model = DINOv3ViTModel.from_pretrained(model_name)
+        self.model = load_dinov3(model_name)
         self.model.eval()
         self.image_size = image_size
         self.transform = transforms.Compose([
