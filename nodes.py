@@ -575,7 +575,9 @@ class Trellis2LoadModelComfy:
         vaes = [f for f in folder_paths.get_filename_list("vae") if "trellis" in f.lower()]
         dinos = ["auto (download facebook/dinov3)"] + [f for f in folder_paths.get_filename_list("clip_vision") if "dino" in f.lower()]
         import importlib.util
-        attn_default = "flash_attn_3" if importlib.util.find_spec("flash_attn_interface") is not None else "sdpa"
+        # flash_attn_3 only has Hopper (sm_90) kernels
+        hopper = torch.cuda.is_available() and torch.cuda.get_device_capability()[0] == 9
+        attn_default = "flash_attn_3" if hopper and importlib.util.find_spec("flash_attn_interface") is not None else "sdpa"
         return {
             "required": {
                 "diffusion_model": (diffusion_models or ["trellis_2_int8_convrot.safetensors"], {"tooltip": "models/diffusion_models: trellis_2_*, pixal3d_* or pixal3d_multiview_*"}),
