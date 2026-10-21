@@ -1,0 +1,154 @@
+diff --git a/setup.py b/setup.py
+index d37be48..e1efb91 100644
+--- a/setup.py
++++ b/setup.py
+@@ -66,6 +66,7 @@ setup(
+             include_dirs=[
+                 os.path.join(ROOT, "third_party/cubvh/include"),
+                 os.path.join(ROOT, "third_party/cubvh/third_party/eigen"),
++                ROOT,
+             ],
+             extra_compile_args={
+                 "cxx": ["-O3", "-std=c++20"],
+diff --git a/src/clean_up.cu b/src/clean_up.cu
+index c223f56..e5030ab 100644
+--- a/src/clean_up.cu
++++ b/src/clean_up.cu
+@@ -152,12 +152,12 @@ void CuMesh::remove_unreferenced_vertices() {
+     size_t temp_storage_bytes = 0;
+     CUDA_CHECK(cub::DeviceScan::ExclusiveSum(
+         nullptr, temp_storage_bytes,
+-        cu_vertex_is_referenced, V+1
++        cu_vertex_is_referenced, cu_vertex_is_referenced, V+1
+     ));
+     this->cub_temp_storage.resize(temp_storage_bytes);
+     CUDA_CHECK(cub::DeviceScan::ExclusiveSum(
+         this->cub_temp_storage.ptr, temp_storage_bytes,
+-        cu_vertex_is_referenced, V+1
++        cu_vertex_is_referenced, cu_vertex_is_referenced, V+1
+     ));
+     int new_num_vertices;
+     CUDA_CHECK(cudaMemcpy(&new_num_vertices, cu_vertex_is_referenced + V, sizeof(int), cudaMemcpyDeviceToHost));
+@@ -506,13 +506,13 @@ void CuMesh::fill_holes(float max_hole_perimeter) {
+     temp_storage_bytes = 0;
+     CUDA_CHECK(cub::DeviceScan::InclusiveSum(
+         nullptr, temp_storage_bytes,
+-        cu_loop_bound_loop_ids,
++        cu_loop_bound_loop_ids, cu_loop_bound_loop_ids,
+         E
+     ));
+     this->cub_temp_storage.resize(temp_storage_bytes);
+     CUDA_CHECK(cub::DeviceScan::InclusiveSum(
+         this->cub_temp_storage.ptr, temp_storage_bytes,
+-        cu_loop_bound_loop_ids,
++        cu_loop_bound_loop_ids, cu_loop_bound_loop_ids,
+         E
+     ));
+ 
+@@ -578,13 +578,13 @@ void CuMesh::fill_holes(float max_hole_perimeter) {
+     temp_storage_bytes = 0;
+     CUDA_CHECK(cub::DeviceScan::InclusiveSum(
+         nullptr, temp_storage_bytes,
+-        cu_new_loop_bound_loop_ids,
++        cu_new_loop_bound_loop_ids, cu_new_loop_bound_loop_ids,
+         new_num_loop_boundaries
+     ));
+     this->cub_temp_storage.resize(temp_storage_bytes);
+     CUDA_CHECK(cub::DeviceScan::InclusiveSum(
+         this->cub_temp_storage.ptr, temp_storage_bytes,
+-        cu_new_loop_bound_loop_ids,
++        cu_new_loop_bound_loop_ids, cu_new_loop_bound_loop_ids,
+         new_num_loop_boundaries
+     ));
+ 
+diff --git a/src/connectivity.cu b/src/connectivity.cu
+index 6e2f5fe..50d2e4f 100644
+--- a/src/connectivity.cu
++++ b/src/connectivity.cu
+@@ -1074,13 +1074,13 @@ void CuMesh::get_boundary_loops() {
+     temp_storage_bytes = 0;
+     CUDA_CHECK(cub::DeviceScan::ExclusiveSum(
+         nullptr, temp_storage_bytes,
+-        this->loop_boundaries_offset.ptr,
++        this->loop_boundaries_offset.ptr, this->loop_boundaries_offset.ptr,
+         this->num_bound_loops + 1
+     ));
+     this->cub_temp_storage.resize(temp_storage_bytes);
+     CUDA_CHECK(cub::DeviceScan::ExclusiveSum(
+         this->cub_temp_storage.ptr, temp_storage_bytes,
+-        this->loop_boundaries_offset.ptr,
++        this->loop_boundaries_offset.ptr, this->loop_boundaries_offset.ptr,
+         this->num_bound_loops + 1
+     ));
+ }
+diff --git a/src/remesh/svox2vert.cu b/src/remesh/svox2vert.cu
+index 43123d3..45ef87b 100644
+--- a/src/remesh/svox2vert.cu
++++ b/src/remesh/svox2vert.cu
+@@ -175,10 +175,10 @@ torch::Tensor cumesh::get_sparse_voxel_grid_active_vertices(
+ 
+     // Compute the offset 
+     size_t temp_storage_bytes = 0;
+-    cub::DeviceScan::ExclusiveSum(nullptr, temp_storage_bytes, num_vertices, M + 1);
++    cub::DeviceScan::ExclusiveSum(nullptr, temp_storage_bytes, num_vertices, num_vertices, M + 1);
+     void* d_temp_storage = nullptr;
+     CUDA_CHECK(cudaMalloc(&d_temp_storage, temp_storage_bytes));
+-    cub::DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, num_vertices, M + 1);
++    cub::DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, num_vertices, num_vertices, M + 1);
+     CUDA_CHECK(cudaFree(d_temp_storage));
+     int total_vertices;
+     CUDA_CHECK(cudaMemcpy(&total_vertices, num_vertices + M, sizeof(int), cudaMemcpyDeviceToHost));
+diff --git a/src/shared.h b/src/shared.h
+index 66ecac7..6f35a6f 100644
+--- a/src/shared.h
++++ b/src/shared.h
+@@ -215,13 +215,13 @@ int compress_ids(T* ids, size_t N, Buffer<char>& cub_temp_storage, T* inverse=nu
+     temp_storage_bytes = 0;
+     CUDA_CHECK(cub::DeviceScan::ExclusiveSum(
+         nullptr, temp_storage_bytes,
+-        cu_new_ids,
++        cu_new_ids, cu_new_ids,
+         N
+     ));
+     cub_temp_storage.resize(temp_storage_bytes);
+     CUDA_CHECK(cub::DeviceScan::ExclusiveSum(
+         cub_temp_storage.ptr, temp_storage_bytes,
+-        cu_new_ids,
++        cu_new_ids, cu_new_ids,
+         N
+     ));
+     
+diff --git a/src/simplify.cu b/src/simplify.cu
+index 9efde9e..534695b 100644
+--- a/src/simplify.cu
++++ b/src/simplify.cu
+@@ -473,12 +473,12 @@ void collapse_edges(
+     size_t temp_storage_bytes = 0;
+     CUDA_CHECK(cub::DeviceScan::ExclusiveSum(
+         nullptr, temp_storage_bytes,
+-        ctx.vertices_map.ptr, V+1
++        ctx.vertices_map.ptr, ctx.vertices_map.ptr, V+1
+     ));
+     ctx.cub_temp_storage.resize(temp_storage_bytes);
+     CUDA_CHECK(cub::DeviceScan::ExclusiveSum(
+         ctx.cub_temp_storage.ptr, temp_storage_bytes,
+-        ctx.vertices_map.ptr, V+1
++        ctx.vertices_map.ptr, ctx.vertices_map.ptr, V+1
+     ));
+     int new_num_vertices;
+     CUDA_CHECK(cudaMemcpy(&new_num_vertices, ctx.vertices_map.ptr + V, sizeof(int), cudaMemcpyDeviceToHost));
+@@ -497,12 +497,12 @@ void collapse_edges(
+     // get faces map
+     CUDA_CHECK(cub::DeviceScan::ExclusiveSum(
+         nullptr, temp_storage_bytes,
+-        ctx.faces_map.ptr, F+1
++        ctx.faces_map.ptr, ctx.faces_map.ptr, F+1
+     ));
+     ctx.cub_temp_storage.resize(temp_storage_bytes);
+     CUDA_CHECK(cub::DeviceScan::ExclusiveSum(
+         ctx.cub_temp_storage.ptr, temp_storage_bytes,
+-        ctx.faces_map.ptr, F+1
++        ctx.faces_map.ptr, ctx.faces_map.ptr, F+1
+     ));
+     int new_num_faces;
+     CUDA_CHECK(cudaMemcpy(&new_num_faces, ctx.faces_map.ptr + F, sizeof(int), cudaMemcpyDeviceToHost));
