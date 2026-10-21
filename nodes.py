@@ -354,12 +354,12 @@ class Trellis2LoadModel:
         return {
             "required": {
                 "modelname": (["microsoft/TRELLIS.2-4B","visualbruno/TRELLIS.2-4B-FP8","TencentARC/Pixal3D"],{"default":"microsoft/TRELLIS.2-4B"}),
-                "backend": (["flash_attn","xformers","sdpa","flash_attn_3"],{"default":"flash_attn"}),
+                "backend": (["flash_attn","xformers","sdpa","flash_attn_3","comfy","comfy_kitchen_int8"],{"default":"flash_attn"}),
                 "device": (["cpu","cuda"],{"default":"cuda"}),
                 "low_vram": ("BOOLEAN",{"default":True}),
                 "keep_models_loaded": ("BOOLEAN", {"default":True}),
                 "conv_backend": (["spconv","torchsparse","flex_gemm"],{"default":"flex_gemm"}),
-                "sparse_backend": (["xformers","flash_attn"],{"default":"flash_attn"}),
+                "sparse_backend": (["xformers","flash_attn","sdpa","comfy","comfy_kitchen_int8"],{"default":"flash_attn"}),
                 "use_reconviagen": ("BOOLEAN",{"default":False}),
                 "pixal3d_multiview": ("BOOLEAN",{"default":False,"tooltip":"Pixal3D only: load the multi-view denoisers (pipeline_mv.json / ckpts/*_mv) instead of the single-view ones"}),
                 #"naf_chunk_size":(["None","144","208","272","336","400","464","528","592","656","720","784","848","912","976","1024"],{"default":"None"}),
@@ -577,19 +577,20 @@ class Trellis2LoadModelComfy:
         import importlib.util
         # flash_attn_3 only has Hopper (sm_90) kernels
         hopper = torch.cuda.is_available() and torch.cuda.get_device_capability()[0] == 9
-        attn_default = "flash_attn_3" if hopper and importlib.util.find_spec("flash_attn_interface") is not None else "sdpa"
+        attn_default = "flash_attn_3" if hopper and importlib.util.find_spec("flash_attn_interface") is not None else "comfy"
+        attn_tooltip = "comfy = the attention ComfyUI uses (pytorch, or sage/flash when ComfyUI is launched with them); comfy_kitchen_int8 = faster int8 attention, slightly less exact; sdpa needs no extra package (slowest)"
         return {
             "required": {
                 "diffusion_model": (diffusion_models or ["trellis_2_int8_convrot.safetensors"], {"tooltip": "models/diffusion_models: trellis_2_*, pixal3d_* or pixal3d_multiview_*"}),
                 "shape_vae": (vaes or ["trellis_2_shape_vae_bf16.safetensors"], {"default": "trellis_2_shape_vae_bf16.safetensors"}),
                 "texture_vae": (vaes or ["trellis_2_texture_vae_bf16.safetensors"], {"default": "trellis_2_texture_vae_bf16.safetensors"}),
-                "dino_model": (dinos, {"default": "dino_v3_vit_l.safetensors" if "dino_v3_vit_l.safetensors" in dinos else dinos[0], "tooltip": "models/clip_vision: dino_v3_vit_l or dino_v3_L_naf_fp32 (the NAF part is not used)"}),
-                "backend": (["flash_attn","xformers","sdpa","flash_attn_3"],{"default":attn_default}),
+                "dino_model": (dinos, {"default": "dino_v3_vit_l.safetensors" if "dino_v3_vit_l.safetensors" in dinos else dinos[0], "tooltip": "models/clip_vision: dino_v3_vit_l or dino_v3_L_naf_fp32 (Pixal3D takes its NAF upsampler from the _naf_ file)"}),
+                "backend": (["flash_attn","xformers","sdpa","flash_attn_3","comfy","comfy_kitchen_int8"],{"default":attn_default,"tooltip":attn_tooltip}),
                 "device": (["cpu","cuda"],{"default":"cuda"}),
                 "low_vram": ("BOOLEAN",{"default":True}),
                 "keep_models_loaded": ("BOOLEAN", {"default":True}),
                 "conv_backend": (["spconv","torchsparse","flex_gemm"],{"default":"flex_gemm"}),
-                "sparse_backend": (["xformers","flash_attn","flash_attn_3","sdpa"],{"default":attn_default,"tooltip":"sdpa needs no extra package (slower)"}),
+                "sparse_backend": (["xformers","flash_attn","flash_attn_3","sdpa","comfy","comfy_kitchen_int8"],{"default":attn_default,"tooltip":attn_tooltip}),
                 "pixal3d_multiview": (["auto","on","off"],{"default":"auto","tooltip":"Pixal3D only. auto = on when the file name contains 'multiview'"}),
             }
         }

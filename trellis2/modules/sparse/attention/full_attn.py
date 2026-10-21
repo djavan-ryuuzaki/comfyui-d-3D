@@ -2,6 +2,7 @@ from typing import *
 import torch
 from .. import VarLenTensor
 from .. import config
+from ...attention.config import comfy_attention_function
 
 
 __all__ = [
@@ -170,9 +171,10 @@ def sparse_scaled_dot_product_attention(*args, **kwargs):
             v = v.reshape(N * L, H, CO)     # [T_KV, H, Co]
 
     # ---- attention dispatch with safe fallbacks (Windows-friendly) ----
-    def _sdpa_varlen(q, k, v, q_seqlen, kv_seqlen):
+    def _sdpa_varlen(q, k, v, q_seqlen, kv_seqlen, attn=None):
         # q: [TQ, H, Cq], k: [TK, H, Cq], v: [TK, H, Cv]
         # returns: [TQ, H, Cv]
+        # attn: a ComfyUI attention function used instead of torch SDPA
         outs = []
         q_off = 0
         kv_off = 0
@@ -188,11 +190,14 @@ def sparse_scaled_dot_product_attention(*args, **kwargs):
             k_i = k_i.unsqueeze(0)  # [1, H, kn, C]
             v_i = v_i.unsqueeze(0)  # [1, H, kn, Cv]
 
-            out_i = torch.nn.functional.scaled_dot_product_attention(
-                q_i, k_i, v_i,
-                dropout_p=0.0,
-                is_causal=False
-            )[0]  # [H, qn, Cv]
+            if attn is None:
+                out_i = torch.nn.functional.scaled_dot_product_attention(
+                    q_i, k_i, v_i,
+                    dropout_p=0.0,
+                    is_causal=False
+                )[0]  # [H, qn, Cv]
+            else:
+                out_i = attn(q_i, k_i, v_i, heads=q_i.shape[1], skip_reshape=True, skip_output_reshape=True)[0]
 
             outs.append(out_i.transpose(0, 1))  # [qn, H, Cv]
             q_off += qn
@@ -256,6 +261,9 @@ def sparse_scaled_dot_product_attention(*args, **kwargs):
         except Exception:
             # fallback to torch SDPA
             out = _sdpa_varlen(q, k, v, q_seqlen, kv_seqlen)
+
+    elif config.ATTN in ('comfy', 'comfy_kitchen_int8'):
+        out = _sdpa_varlen(q, k, v, q_seqlen, kv_seqlen, comfy_attention_function(config.ATTN))
 
     else:
         # final fallback: torch SDPA

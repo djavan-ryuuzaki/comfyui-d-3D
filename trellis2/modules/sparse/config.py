@@ -22,7 +22,7 @@ def __from_env():
         CONV = env_sparse_conv_backend
     if env_sparse_debug is not None:
         DEBUG = env_sparse_debug == '1'
-    if env_sparse_attn_backend is not None and env_sparse_attn_backend in ['xformers', 'flash_attn', 'flash_attn_3']:
+    if env_sparse_attn_backend is not None and env_sparse_attn_backend in ['xformers', 'flash_attn', 'flash_attn_3', 'sdpa', 'comfy', 'comfy_kitchen_int8']:
         ATTN = env_sparse_attn_backend
     ATTN = resolve_backend(ATTN)
 

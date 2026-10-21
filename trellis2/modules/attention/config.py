@@ -22,12 +22,26 @@ def resolve_backend(backend: str) -> str:
             usable = not flash_attn.__version__.startswith('3') or major == 9
     elif backend == 'xformers':
         usable = importlib.util.find_spec('xformers') is not None
+    elif backend == 'comfy_kitchen_int8':
+        import comfy_kitchen
+        usable = torch.cuda.is_available() and comfy_kitchen.int8_attention_is_available(torch.device('cuda'))
     else:
         usable = True
     if not usable:
         print(f"[ATTENTION] {backend} is not usable on this GPU, using sdpa")
         return 'sdpa'
     return backend
+
+
+def comfy_attention_function(backend: str):
+    """
+    ComfyUI's attention for the 'comfy' (the one ComfyUI selected at launch) and
+    'comfy_kitchen_int8' backends. Takes and returns [B, H, L, C] with skip_reshape.
+    """
+    import comfy.ldm.modules.attention as comfy_attention
+    if backend == 'comfy_kitchen_int8':
+        return comfy_attention.attention_comfy_kitchen_int8
+    return comfy_attention.optimized_attention
 
 
 def __from_env():
@@ -39,7 +53,7 @@ def __from_env():
     env_attn_backend = os.environ.get('ATTN_BACKEND')
     env_attn_debug = os.environ.get('ATTN_DEBUG')
     
-    if env_attn_backend is not None and env_attn_backend in ['xformers', 'flash_attn', 'flash_attn_3', 'sdpa', 'naive']:
+    if env_attn_backend is not None and env_attn_backend in ['xformers', 'flash_attn', 'flash_attn_3', 'sdpa', 'naive', 'comfy', 'comfy_kitchen_int8']:
         BACKEND = env_attn_backend
     if env_attn_debug is not None:
         DEBUG = env_attn_debug == '1'

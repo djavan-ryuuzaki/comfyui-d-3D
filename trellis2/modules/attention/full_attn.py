@@ -133,6 +133,14 @@ def scaled_dot_product_attention(*args, **kwargs):
         v = v.permute(0, 2, 1, 3)   # [N, H, L, C]
         out = sdpa(q, k, v)         # [N, H, L, C]
         out = out.permute(0, 2, 1, 3)   # [N, L, H, C]
+    elif config.BACKEND in ('comfy', 'comfy_kitchen_int8'):
+        if num_all_args == 1:
+            q, k, v = qkv.unbind(dim=2)
+        elif num_all_args == 2:
+            k, v = kv.unbind(dim=2)
+        q, k, v = q.permute(0, 2, 1, 3), k.permute(0, 2, 1, 3), v.permute(0, 2, 1, 3)   # [N, H, L, C]
+        attn = config.comfy_attention_function(config.BACKEND)
+        out = attn(q, k, v, heads=q.shape[1], skip_reshape=True, skip_output_reshape=True).permute(0, 2, 1, 3)   # [N, L, H, C]
     elif config.BACKEND == 'naive':
         if num_all_args == 1:
             q, k, v = qkv.unbind(dim=2)
