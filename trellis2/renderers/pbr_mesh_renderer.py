@@ -264,9 +264,12 @@ class PbrMeshRenderer:
                 out_dict[shaded_key] = torch.zeros((3, resolution, resolution), dtype=torch.float32, device=self.device)
             return out_dict
             
-        rays_o, rays_d = utils3d.torch.get_image_rays(
-            extrinsics, intrinsics, resolution * ssaa, resolution * ssaa
-        )
+        # utils3d 0.0.2 get_image_rays, which newer utils3d (needed by MoGe) no longer has
+        size = resolution * ssaa
+        uv = utils3d.torch.uv_map(size, size, dtype=extrinsics.dtype, device=extrinsics.device).flatten(0, 1)
+        uvz = torch.cat([uv, torch.ones_like(uv[..., :1])], dim=-1)
+        rays_d = (uvz @ (intrinsics @ extrinsics[..., :3, :3]).inverse().transpose(-1, -2)).unflatten(-2, (size, size))
+        rays_o = extrinsics.inverse()[..., None, :3, 3].unflatten(-2, (1, 1))
         
         perspective = intrinsics_to_projection(intrinsics, near, far)
         

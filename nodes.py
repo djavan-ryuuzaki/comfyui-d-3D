@@ -3396,7 +3396,8 @@ class Trellis2PreProcessImage:
             # output = self.rembg_model(input)
             # if self.low_vram:
                 # self.rembg_model.cpu()
-        output = input
+        # Without background removal an RGB image is used whole (fully opaque)
+        output = input.convert('RGBA')
         output_np = np.array(output)
         alpha = output_np[:, :, 3]
         bbox = np.argwhere(alpha > 0.8 * 255)
