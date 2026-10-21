@@ -362,6 +362,17 @@ def _rebuild_non_persistent(model: nn.Module, config: dict, kwargs: dict):
         coords = torch.stack(coords, dim=-1).reshape(-1, 3)
         model.rope_phases = pos_embedder(coords).to(rope_phases.dtype)
 
+    # The position embedders keep `freqs` as a plain attribute, so the meta
+    # device construction leaves it without data
+    for module in model.modules():
+        freqs = module.__dict__.get('freqs')
+        if isinstance(freqs, torch.Tensor) and freqs.is_meta:
+            f = torch.arange(module.freq_dim, dtype=torch.float32) / module.freq_dim
+            if hasattr(module, 'rope_freq'):
+                module.freqs = module.rope_freq[0] / (module.rope_freq[1] ** f)
+            else:
+                module.freqs = 1.0 / (10000 ** f)
+
 
 # =============================================================================
 # DINOv3 from the Comfy-Org clip_vision file
