@@ -12,7 +12,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import transforms
 from transformers import DINOv3ViTModel
-from ....comfy_int8 import load_dinov3
+from ....comfy_int8 import load_dinov3, load_naf
 import numpy as np
 from PIL import Image, ImageDraw
 
@@ -531,10 +531,13 @@ class DinoV3ProjFeatureExtractor(nn.Module):
         """Lazy-load pretrained NAF model."""
         if self.naf_model is None:
             import torch.hub
-            device = next(self.model.parameters()).device            
+            device = next(self.model.parameters()).device
             cached_repo = self._cached_naf_repo()
-            
-            if cached_repo is not None:
+
+            self.naf_model = load_naf(self.model_name)
+            if self.naf_model is not None:
+                self.naf_model.to(device)
+            elif cached_repo is not None:
                 self.naf_model = torch.hub.load(
                     cached_repo, "naf", pretrained=True, device=device, source="local", trust_repo=True
                 )

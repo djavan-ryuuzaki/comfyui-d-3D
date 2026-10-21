@@ -424,3 +424,27 @@ def load_dinov3(model_name: str):
         raise RuntimeError(f'{os.path.basename(model_name)} is not a DINOv3 ViT-L/16: missing={missing[:5]} unexpected={unexpected[:5]}')
     model.eval()
     return model
+
+
+def load_naf(dino_model_name: str):
+    """
+    The NAF upsampler from a Comfy-Org DINOv3 file (naf.* keys, e.g. dino_v3_L_naf_fp32),
+    run with ComfyUI's own NAF, which needs no natten. Looks in dino_model_name first,
+    then in the models/clip_vision files with 'naf' in their name. None if there is none.
+    """
+    import folder_paths
+    import comfy.ops
+    from comfy.image_encoders.naf import NAF
+    from safetensors import safe_open
+
+    candidates = [dino_model_name] if dino_model_name.endswith('.safetensors') else []
+    candidates += [folder_paths.get_full_path('clip_vision', f) for f in folder_paths.get_filename_list('clip_vision') if 'naf' in f.lower()]
+    for path in candidates:
+        with safe_open(path, framework='pt', device='cpu') as f:
+            sd = {k[len('naf.'):]: f.get_tensor(k) for k in f.keys() if k.startswith('naf.')}
+        if sd:
+            naf = NAF(operations=comfy.ops.manual_cast)
+            naf.load_state_dict(sd)
+            print(f'[Trellis2] Loaded NAF from {os.path.basename(path)}')
+            return naf
+    return None
