@@ -1,4 +1,5 @@
 from typing import *
+from ..attention.config import resolve_backend
 
 CONV = 'flex_gemm' 
 DEBUG = False
@@ -23,7 +24,8 @@ def __from_env():
         DEBUG = env_sparse_debug == '1'
     if env_sparse_attn_backend is not None and env_sparse_attn_backend in ['xformers', 'flash_attn', 'flash_attn_3']:
         ATTN = env_sparse_attn_backend
-        
+    ATTN = resolve_backend(ATTN)
+
     print(f"[SPARSE] Conv backend: {CONV}; Attention backend: {ATTN}")
         
 
@@ -40,4 +42,4 @@ def set_debug(debug: bool):
 
 def set_attn_backend(backend: Literal['xformers', 'flash_attn']):
     global ATTN
-    ATTN = backend
+    ATTN = resolve_backend(backend)
