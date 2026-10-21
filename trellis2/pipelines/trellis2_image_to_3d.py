@@ -292,7 +292,8 @@ class Trellis2ImageTo3DPipeline(Pipeline):
         model_name = "Ruicheng/moge-2-vitl"
         moge_model_path = os.path.join(folder_paths.models_dir, "Ruicheng","moge-2-vitl")
         
-        if not os.path.exists(moge_model_path):
+        # Check the checkpoint itself, an interrupted download leaves the folder behind
+        if not os.path.exists(os.path.join(moge_model_path, 'model.pt')):
             print(f"Downloading MoGe model to: {moge_model_path}")
             from huggingface_hub import snapshot_download
             snapshot_download(
