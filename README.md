@@ -2,7 +2,7 @@
 
 Fork of [visualbruno/ComfyUI-Trellis2](https://github.com/visualbruno/ComfyUI-Trellis2) that also runs on the
 **Comfy-Org int8 / bf16 single-file models** (the ones used by ComfyUI's native TRELLIS.2 / Pixal3D nodes) and ships
-wheels for **Python 3.13 + PyTorch 2.12 + CUDA 13.2** on Windows.
+wheels for **Python 3.13 + PyTorch 2.12 + CUDA 13.2** on Windows and Linux.
 
 ## What's new in this fork
 
@@ -31,6 +31,18 @@ python_embeded\python.exe -m pip install -r ComfyUI\custom_nodes\comfyui-d-3D\re
 ```
 
 Sources, commits and the patches needed for CUDA 13.2 are in `wheels/Windows/Torch2120/CUDA 13.2/BUILD.md`.
+
+### Wheels for Python 3.13 / Torch 2.12 / CUDA 13.2 (Linux)
+
+In `wheels/Linux/Torch2120/CUDA 13.2`, same packages and GPUs as Windows. They work with torch 2.12.x `+cu130` or `+cu132`:
+
+```bash
+cd ComfyUI/custom_nodes/comfyui-d-3D
+pip install "wheels/Linux/Torch2120/CUDA 13.2/"*.whl
+pip install -r requirements.txt
+```
+
+Build details are in `wheels/Linux/Torch2120/CUDA 13.2/BUILD.md`.
 
 ---
 
