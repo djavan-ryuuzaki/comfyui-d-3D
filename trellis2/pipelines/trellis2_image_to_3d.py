@@ -3378,7 +3378,7 @@ class Trellis2ImageTo3DPipeline(Pipeline):
             metallicFactor=1.0,
             roughnessFactor=1.0,
             alphaMode=texture_alpha_mode,
-            doubleSided=True,
+            doubleSided=double_side_material,
         )
 
         # Swap Y and Z axes, invert Y (common conversion for GLB compatibility)
