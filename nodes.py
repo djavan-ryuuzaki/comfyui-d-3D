@@ -8583,6 +8583,7 @@ class Trellis2QuadRemesh:
                 "deterministic": ("BOOLEAN",{"default":True}),
                 "uv_texture_size": ("INT",{"default":2048,"min":256,"max":16384}),
                 "uv_padding": ("INT",{"default":4,"min":0,"max":64}),
+                "fill_holes": ("BOOLEAN",{"default":True}),
             }
         }
 
@@ -8592,7 +8593,7 @@ class Trellis2QuadRemesh:
     CATEGORY = "Trellis2Wrapper"
     DESCRIPTION = "Retopologizes the mesh into quads with Instant Meshes and UV-unwraps it without cutting any quad. Texture it with Trellis2 - Mesh Texturing and save it with Trellis2 - Export Quad Mesh (OBJ)."
 
-    def process(self, trimesh, target_quads, crease_angle, smooth_iterations, align_to_boundaries, deterministic, uv_texture_size, uv_padding):
+    def process(self, trimesh, target_quads, crease_angle, smooth_iterations, align_to_boundaries, deterministic, uv_texture_size, uv_padding, fill_holes):
         vertices = np.asarray(trimesh.vertices)
         faces = np.asarray(trimesh.faces)
         print(f'Quad Remesh: input {len(vertices)} vertices, {len(faces)} faces')
@@ -8600,8 +8601,15 @@ class Trellis2QuadRemesh:
         quad_vertices, quads = quad_mesh.remesh_quads(vertices, faces, target_quads, crease_angle, smooth_iterations, align_to_boundaries, deterministic)
         print(f'Quad Remesh: {len(quad_vertices)} vertices, {len(quads)} quads')
 
+        quad_vertices, quads = quad_mesh.clean_quads(quad_vertices, quads)
+        triangles = np.zeros((0, 3), dtype=np.int64)
+        if fill_holes:
+            n_quads = len(quads)
+            quads, triangles = quad_mesh.fill_holes(quad_vertices, quads)
+            print(f'Quad Remesh: holes filled with {len(quads) - n_quads} quads and {len(triangles)} triangles')
+
         print('Quad Remesh: unwrapping UVs ...')
-        out_vertices, out_faces, uvs, fixed, remaining = quad_mesh.unwrap_quads(quad_vertices, quads, uv_texture_size, uv_padding)
+        out_vertices, out_faces, uvs, fixed, remaining = quad_mesh.unwrap_quads(quad_vertices, quads, triangles, uv_texture_size, uv_padding)
         print(f'Quad Remesh: {fixed} UV seams moved off quad diagonals, {remaining} quads still split')
 
         out = Trimesh.Trimesh(

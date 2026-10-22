@@ -39,6 +39,105 @@ def remesh_quads(vertices, faces, target_quads, crease_angle=0.0, smooth_iterati
     return out_vertices, out_quads
 
 
+def clean_quads(vertices, quads, min_component_ratio=0.001):
+    """Weld vertices and drop degenerate quads, duplicate quads and tiny loose fragments.
+
+    Returns (vertices, quads).
+    """
+    vertices, inv = np.unique(vertices, axis=0, return_inverse=True)
+    quads = inv.reshape(-1)[quads]
+
+    s = np.sort(quads, axis=1)
+    quads = quads[(s[:, :-1] != s[:, 1:]).all(axis=1)]
+    _, first = np.unique(np.sort(quads, axis=1), axis=0, return_index=True)
+    quads = quads[np.sort(first)]
+
+    # Connected components through shared vertices.
+    parent = np.arange(len(vertices))
+
+    def find(x):
+        root = x
+        while parent[root] != root:
+            root = parent[root]
+        while parent[x] != root:
+            parent[x], x = root, parent[x]
+        return root
+
+    for q in quads:
+        r0 = find(q[0])
+        for v in q[1:]:
+            r = find(v)
+            if r != r0:
+                parent[r] = r0
+    roots = np.array([find(q[0]) for q in quads])
+    labels, counts = np.unique(roots, return_counts=True)
+    keep = labels[counts >= max(min_component_ratio * len(quads), 1)]
+    quads = quads[np.isin(roots, keep)]
+
+    used = np.unique(quads)
+    remap = np.full(len(vertices), -1, dtype=np.int64)
+    remap[used] = np.arange(len(used))
+    return vertices[used], remap[quads]
+
+
+def _boundary_loops(quads):
+    """Boundary loops as lists of vertex ids, each one simple (no repeated vertex)."""
+    half = quads[:, [0, 1, 1, 2, 2, 3, 3, 0]].reshape(-1, 2)
+    keys = np.minimum(half[:, 0], half[:, 1]) * (quads.max() + 1) + np.maximum(half[:, 0], half[:, 1])
+    _, inv, counts = np.unique(keys, return_inverse=True, return_counts=True)
+    boundary = half[counts[inv] == 1]
+
+    out_edges = {}
+    for a, b in boundary.tolist():
+        out_edges.setdefault(a, []).append(b)
+
+    loops = []
+    for start in list(out_edges):
+        while out_edges.get(start):
+            path = [start]
+            v = out_edges[start].pop()
+            while v != start and out_edges.get(v):
+                if v in path:
+                    # Pinched loop: cut the cycle off at the repeated vertex.
+                    i = path.index(v)
+                    loops.append(path[i:])
+                    path = path[:i]
+                path.append(v)
+                v = out_edges[v].pop()
+            if v == start and len(path) >= 3:
+                loops.append(path)
+    return [loop for loop in loops if len(loop) >= 3]
+
+
+def fill_holes(vertices, quads):
+    """Close every boundary loop, cutting quads off the loop where the new edge is shortest.
+
+    Loops with an odd number of edges cannot be filled with quads only and end in
+    one triangle. Returns (quads, triangles [T,3]).
+    """
+    new_quads = []
+    triangles = []
+    for loop in _boundary_loops(quads):
+        # Boundary edges run along their face; the patch has to run the other way.
+        loop = loop[::-1]
+        while len(loop) > 4:
+            p = vertices[loop]
+            n = len(loop)
+            idx = np.arange(n)
+            closing = np.linalg.norm(p[(idx + 3) % n] - p, axis=1)
+            sides = (np.linalg.norm(p[(idx + 1) % n] - p, axis=1) + np.linalg.norm(p[(idx + 2) % n] - p[(idx + 1) % n], axis=1)
+                     + np.linalg.norm(p[(idx + 3) % n] - p[(idx + 2) % n], axis=1))
+            i = int(np.argmin(closing / np.maximum(sides, 1e-12)))
+            new_quads.append([loop[i], loop[(i + 1) % n], loop[(i + 2) % n], loop[(i + 3) % n]])
+            loop = [loop[j] for j in range(n) if j not in ((i + 1) % n, (i + 2) % n)]
+        if len(loop) == 4:
+            new_quads.append(loop)
+        else:
+            triangles.append(loop)
+    quads = np.concatenate([quads, np.array(new_quads, dtype=np.int64).reshape(-1, 4)])
+    return quads, np.array(triangles, dtype=np.int64).reshape(-1, 3)
+
+
 def quads_to_triangle_pairs(quads):
     """(a, b, c, d) -> (a, b, c), (a, c, d), stored as consecutive triangles."""
     return np.stack([quads[:, [0, 1, 2]], quads[:, [0, 2, 3]]], axis=1).reshape(-1, 3)
@@ -91,7 +190,7 @@ def _run_xatlas(positions, triangles, uvs, resolution, padding):
     return vmap, indices, np.asarray(out_uvs, dtype=np.float32)
 
 
-def unwrap_quads(vertices, quads, resolution=2048, padding=2, max_rounds=4):
+def unwrap_quads(vertices, quads, triangles, resolution=2048, padding=2, max_rounds=4):
     """UV-unwrap a quad mesh so that no UV seam runs across a quad's diagonal.
 
     xatlas only knows triangles, so after a first pass a few quads end up with
@@ -99,19 +198,21 @@ def unwrap_quads(vertices, quads, resolution=2048, padding=2, max_rounds=4):
     into the chart of its partner, and another xatlas pass repacks the charts.
     xatlas may still split a few charts again, so this repeats a few rounds.
 
-    Returns (vertices [N,3], triangles [2Q,3], uvs [N,2], fixed, remaining) where
-    vertices are duplicated along UV seams, triangles come in quad pairs, and
-    remaining counts quads still split by a seam (exported as two triangles).
+    Returns (vertices [N,3], triangles [2Q+T,3], uvs [N,2], fixed, remaining) where
+    vertices are duplicated along UV seams, the first 2Q triangles come in quad
+    pairs followed by the T plain triangles, and remaining counts quads still split
+    by a seam (exported as two triangles).
     """
     vertices = np.ascontiguousarray(vertices, dtype=np.float32)
     quads = _best_diagonal(vertices, quads)
-    triangles = quads_to_triangle_pairs(quads).astype(np.uint32)
+    triangles = np.concatenate([quads_to_triangle_pairs(quads), triangles]).astype(np.uint32)
+    n_pair_tris = 2 * len(quads)
 
     vmap, tri_uv, uvs = _run_xatlas(vertices, triangles, None, resolution, padding)
 
     fixed = 0
     for _ in range(max_rounds):
-        split = np.nonzero(_split_quads(tri_uv))[0]
+        split = np.nonzero(_split_quads(tri_uv[:n_pair_tris]))[0]
         if len(split) == 0:
             break
         fixed += len(split)
@@ -146,15 +247,15 @@ def unwrap_quads(vertices, quads, resolution=2048, padding=2, max_rounds=4):
         )
         vmap = vmap[vmap2]
 
-    remaining = int(_split_quads(tri_uv).sum())
+    remaining = int(_split_quads(tri_uv[:n_pair_tris]).sum())
     return vertices[vmap], tri_uv, uvs, fixed, remaining
 
 
 def triangle_pairs_to_faces(faces):
     """Merge consecutive triangle pairs back into quads.
 
-    Returns a list of faces (each a tuple of 3 or 4 indices) and the number of
-    pairs that did not look like a quad split and were kept as triangles.
+    Returns a list of faces (each a tuple of 3 or 4 indices); pairs that do not
+    look like a quad split are kept as two triangles.
     """
     faces = np.asarray(faces, dtype=np.int64)
     n_pairs = len(faces) // 2
@@ -171,7 +272,7 @@ def triangle_pairs_to_faces(faces):
             out.append(tuple(t1[i]))
     if len(faces) % 2:
         out.append(tuple(faces[-1]))
-    return out, int(n_pairs - is_quad.sum())
+    return out
 
 
 def _corners(face):
@@ -221,7 +322,7 @@ def write_quad_obj(mesh, obj_path, material_name):
         uv_values, uv_index = np.unique(uvs, axis=0, return_inverse=True)
         uv_index = uv_index.reshape(-1)
 
-    merged, kept_triangles = triangle_pairs_to_faces(faces)
+    merged = triangle_pairs_to_faces(faces)
 
     base = os.path.splitext(os.path.basename(obj_path))[0]
     folder = os.path.dirname(obj_path)
@@ -274,6 +375,4 @@ def write_quad_obj(mesh, obj_path, material_name):
                 rows.append('f ' + ' '.join(f'{v_index[v] + 1}' for v in corners) + '\n')
         f.write(''.join(rows))
 
-    if kept_triangles:
-        print(f'Export Quad Mesh: {kept_triangles} triangle pairs were not quads (was the mesh changed after Quad Remesh?)')
     return quad_count, triangle_count
