@@ -44,6 +44,7 @@ from .trellis2.modules.attention import config
 from .trellis2.modules.sparse import config as sparseconfig
 from .trellis2.pipelines import samplers
 from .trellis2.modules.sparse import SparseTensor
+from . import quad_mesh
 
 script_directory = os.path.dirname(os.path.abspath(__file__))
 comfy_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
@@ -8569,6 +8570,84 @@ class Trellis2StringToFile3D:
         
         return (file_3d, )       
 
+class Trellis2QuadRemesh:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "trimesh": ("TRIMESH",),
+                "target_quads": ("INT",{"default":10000,"min":100,"max":2000000,"step":100}),
+                "crease_angle": ("FLOAT",{"default":0.0,"min":0.0,"max":180.0,"step":1.0}),
+                "smooth_iterations": ("INT",{"default":2,"min":0,"max":10}),
+                "align_to_boundaries": ("BOOLEAN",{"default":False}),
+                "deterministic": ("BOOLEAN",{"default":True}),
+                "uv_texture_size": ("INT",{"default":2048,"min":256,"max":16384}),
+                "uv_padding": ("INT",{"default":4,"min":0,"max":64}),
+            }
+        }
+
+    RETURN_TYPES = ("TRIMESH",)
+    RETURN_NAMES = ("trimesh",)
+    FUNCTION = "process"
+    CATEGORY = "Trellis2Wrapper"
+    DESCRIPTION = "Retopologizes the mesh into quads with Instant Meshes and UV-unwraps it without cutting any quad. Texture it with Trellis2 - Mesh Texturing and save it with Trellis2 - Export Quad Mesh (OBJ)."
+
+    def process(self, trimesh, target_quads, crease_angle, smooth_iterations, align_to_boundaries, deterministic, uv_texture_size, uv_padding):
+        vertices = np.asarray(trimesh.vertices)
+        faces = np.asarray(trimesh.faces)
+        print(f'Quad Remesh: input {len(vertices)} vertices, {len(faces)} faces')
+
+        quad_vertices, quads = quad_mesh.remesh_quads(vertices, faces, target_quads, crease_angle, smooth_iterations, align_to_boundaries, deterministic)
+        print(f'Quad Remesh: {len(quad_vertices)} vertices, {len(quads)} quads')
+
+        print('Quad Remesh: unwrapping UVs ...')
+        out_vertices, out_faces, uvs, fixed, remaining = quad_mesh.unwrap_quads(quad_vertices, quads, uv_texture_size, uv_padding)
+        print(f'Quad Remesh: {fixed} UV seams moved off quad diagonals, {remaining} quads still split')
+
+        out = Trimesh.Trimesh(
+            vertices=out_vertices,
+            faces=out_faces,
+            visual=Trimesh.visual.TextureVisuals(uv=uvs),
+            process=False
+        )
+        return (out,)
+
+class Trellis2ExportQuadMesh:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "trimesh": ("TRIMESH",),
+                "filename_prefix": ("STRING", {"default": "3D/Trellis2_quad"}),
+            }
+        }
+
+    RETURN_TYPES = ("STRING","STRING","FILE_3D",)
+    RETURN_NAMES = ("obj_path","relative_path","model_3d",)
+    FUNCTION = "process"
+    CATEGORY = "Trellis2Wrapper"
+    OUTPUT_NODE = True
+    DESCRIPTION = "Saves a mesh from Trellis2 - Quad Remesh (textured or not) as an OBJ with quad faces. GLB cannot store quads."
+
+    def process(self, trimesh, filename_prefix):
+        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, folder_paths.get_output_directory())
+        output_obj_path = Path(full_output_folder, f'{filename}_{counter:05}_.obj')
+        output_obj_path.parent.mkdir(exist_ok=True)
+
+        quad_count, triangle_count = quad_mesh.write_quad_obj(trimesh, str(output_obj_path), f'{filename}_{counter:05}')
+        print(f'Export Quad Mesh: {quad_count} quads, {triangle_count} triangles -> {output_obj_path}')
+
+        relative_path = Path(subfolder) / f'{filename}_{counter:05}_.obj'
+
+        from comfy_api.latest import Types
+        file_3d = Types.File3D(str(output_obj_path))
+
+        saved_name = f'{filename}_{counter:05}_.obj'
+        return {
+            "ui": {"3d": [{"filename": saved_name, "subfolder": subfolder, "type": "output"}]},
+            "result": (str(output_obj_path), str(relative_path), file_3d,),
+        }
+
 NODE_CLASS_MAPPINGS = {
     "Trellis2LoadModel": Trellis2LoadModel,
     "Trellis2LoadModelComfy": Trellis2LoadModelComfy,
@@ -8651,6 +8730,8 @@ NODE_CLASS_MAPPINGS = {
     "Trellis2SelectImagesForPixal3DMultiView": Trellis2SelectImagesForPixal3DMultiView,
     "Trellis2MeshTexturingPixal3DMultiView": Trellis2MeshTexturingPixal3DMultiView,
     "Trellis2StringToFile3D": Trellis2StringToFile3D,
+    "Trellis2QuadRemesh": Trellis2QuadRemesh,
+    "Trellis2ExportQuadMesh": Trellis2ExportQuadMesh,
     }
     
 
@@ -8736,4 +8817,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "Trellis2SelectImagesForPixal3DMultiView": "Trellis2 - Select Images For Pixal3D MultiView",
     "Trellis2MeshTexturingPixal3DMultiView": "Trellis2 - Mesh Texturing Pixal3D MultiView",
     "Trellis2StringToFile3D": "Trellis2 - String To File3D",
+    "Trellis2QuadRemesh": "Trellis2 - Quad Remesh (Instant Meshes)",
+    "Trellis2ExportQuadMesh": "Trellis2 - Export Quad Mesh (OBJ)",
     }

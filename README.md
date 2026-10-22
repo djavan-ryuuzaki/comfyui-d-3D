@@ -14,6 +14,13 @@ wheels for **PyTorch 2.12 + CUDA 13.2** on Windows (Python 3.13) and Linux (Pyth
 - Works with transformers 5.x and huggingface_hub 1.x.
 - Comfy-Org ships a single texture denoiser, so the `512` texture stage reuses it (same as the Pixal3D path). ReconViaGen and the FP8 models still need the original `Trellis2 - LoadModel` node.
 
+- Quad meshes: **"Trellis2 - Quad Remesh (Instant Meshes)"** and **"Trellis2 - Export Quad Mesh (OBJ)"**.
+  - Quad Remesh takes a `TRIMESH` (e.g. from `Trellis2 - Mesh With Voxel To Trimesh`), retopologizes it into a pure quad mesh with [Instant Meshes](https://github.com/wjakob/instant-meshes) (`pynanoinstantmeshes`) and UV-unwraps it with xatlas so that no UV seam crosses a quad. `target_quads` is approximate.
+  - Texture the result with `Trellis2 - Mesh Texturing` as usual: since the mesh already has UVs, it keeps them and the face order.
+  - Export Quad Mesh writes an OBJ with quad faces (plus MTL, base color, roughness and metallic PNGs when textured). GLB only stores triangles, so use this node instead of `Trellis2 - Export Mesh`. Don't run simplify / fill holes nodes between the two quad nodes, they break the quads back into triangles.
+  - Workflow: generate → Mesh With Voxel To Trimesh → Quad Remesh → Mesh Texturing (optional) → Export Quad Mesh (OBJ).
+  - Needs `pip install pynanoinstantmeshes xatlas` (both in requirements.txt, wheels for Windows and Linux, Python 3.12 / 3.13).
+
 Model files: [Comfy-Org/TRELLIS.2](https://huggingface.co/Comfy-Org/TRELLIS.2) and [Comfy-Org/Pixal3D](https://huggingface.co/Comfy-Org/Pixal3D).
 
 ### Wheels for Python 3.13 / Torch 2.12 / CUDA 13.2 (Windows)
