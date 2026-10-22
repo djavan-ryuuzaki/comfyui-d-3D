@@ -186,6 +186,13 @@ def tensor_batch_to_pil_list(images: torch.Tensor, max_views: int = 4) -> list[I
         return [tensor2pil(images)]
 
     raise ValueError(f"Unsupported IMAGE tensor shape: {tuple(images.shape)}")    
+
+def pixal3d_view_inputs(image_cond, image, moge_camera_config):
+    """Single-view Pixal3D needs the source image and its MoGe camera. Image Cond Generator
+    stores both in its cond; an image or camera config wired on the node takes precedence."""
+    images = tensor_batch_to_pil_list(image, max_views=16) if image is not None else image_cond['pixal3d_images']
+    camera = moge_camera_config if moge_camera_config is not None else image_cond['pixal3d_camera']
+    return images, camera['camera_angle_x'], camera['distance'], camera['mesh_scale']
     
 def convert_tensor_images_to_pil(images):
     pil_array = []
@@ -4727,6 +4734,10 @@ class Trellis2ImageCondGenerator:
             
             if not pipeline.keep_models_loaded:
                 pipeline.unload_moge_model()            
+
+            for cond in (cond_512, cond_1024):
+                cond['pixal3d_images'] = images
+                cond['pixal3d_camera'] = camera_config
         else:
             camera_config = None
         
@@ -4818,18 +4829,7 @@ class Trellis2SparseGenerator:
                 if not pipeline.keep_models_loaded:
                     pipeline.unload_pixal3d_mv_image_cond_ss()
             else:
-                if image is not None:
-                    images = tensor_batch_to_pil_list(image, max_views=16)
-                    images = list(images)
-                else:
-                    raise Exception('Image is required for Pixal3D')
-
-                if moge_camera_config is not None:
-                    camera_angle_x = moge_camera_config['camera_angle_x']
-                    distance = moge_camera_config['distance']
-                    mesh_scale = moge_camera_config['mesh_scale']
-                else:
-                    raise Exception('MoGe Camera Config is required for Pixal3D')
+                images, camera_angle_x, distance, mesh_scale = pixal3d_view_inputs(image_cond, image, moge_camera_config)
 
                 image_cond_model = pipeline.load_pixal3d_image_cond_ss()
 
@@ -4950,17 +4950,7 @@ class Trellis2ShapeGenerator:
                     if not pipeline.keep_models_loaded:
                         pipeline.unload_pixal3d_mv_image_cond_shape_512()
                 else:
-                    images = tensor_batch_to_pil_list(image, max_views=16)
-                    image_in = images[0] if len(images) == 1 else images
-
-                    if isinstance(image_in, (list, tuple)):
-                        images = list(image_in)
-                    else:
-                        images = [image_in]
-
-                    camera_angle_x = moge_camera_config['camera_angle_x']
-                    distance = moge_camera_config['distance']
-                    mesh_scale = moge_camera_config['mesh_scale']
+                    images, camera_angle_x, distance, mesh_scale = pixal3d_view_inputs(image_cond, image, moge_camera_config)
 
                     image_cond_model = pipeline.load_pixal3d_image_cond_shape_512()
 
@@ -5004,17 +4994,7 @@ class Trellis2ShapeGenerator:
                     if not pipeline.keep_models_loaded:
                         pipeline.unload_pixal3d_mv_image_cond_shape_1024()
                 else:
-                    images = tensor_batch_to_pil_list(image, max_views=16)
-                    image_in = images[0] if len(images) == 1 else images
-
-                    if isinstance(image_in, (list, tuple)):
-                        images = list(image_in)
-                    else:
-                        images = [image_in]
-
-                    camera_angle_x = moge_camera_config['camera_angle_x']
-                    distance = moge_camera_config['distance']
-                    mesh_scale = moge_camera_config['mesh_scale']
+                    images, camera_angle_x, distance, mesh_scale = pixal3d_view_inputs(image_cond, image, moge_camera_config)
 
                     image_cond_model = pipeline.load_pixal3d_image_cond_shape_1024()
 
@@ -5168,17 +5148,7 @@ class Trellis2ShapeCascadeGenerator:
                 if not pipeline.keep_models_loaded:
                     pipeline.unload_pixal3d_mv_image_cond_shape_1024()
             else:
-                images = tensor_batch_to_pil_list(image, max_views=16)
-                image_in = images[0] if len(images) == 1 else images
-
-                if isinstance(image_in, (list, tuple)):
-                    images = list(image_in)
-                else:
-                    images = [image_in]
-
-                camera_angle_x = moge_camera_config['camera_angle_x']
-                distance = moge_camera_config['distance']
-                mesh_scale = moge_camera_config['mesh_scale']
+                images, camera_angle_x, distance, mesh_scale = pixal3d_view_inputs(cond, image, moge_camera_config)
 
                 image_cond_model = pipeline.load_pixal3d_image_cond_shape_1024()
 
@@ -5330,17 +5300,7 @@ class Trellis2TexSlatGenerator:
                     if not pipeline.keep_models_loaded:
                         pipeline.unload_pixal3d_mv_image_cond_tex_1024()
                 else:
-                    images = tensor_batch_to_pil_list(image, max_views=16)
-                    image_in = images[0] if len(images) == 1 else images
-
-                    if isinstance(image_in, (list, tuple)):
-                        images = list(image_in)
-                    else:
-                        images = [image_in]
-
-                    camera_angle_x = moge_camera_config['camera_angle_x']
-                    distance = moge_camera_config['distance']
-                    mesh_scale = moge_camera_config['mesh_scale']
+                    images, camera_angle_x, distance, mesh_scale = pixal3d_view_inputs(image_cond, image, moge_camera_config)
 
                     image_cond_model = pipeline.load_pixal3d_image_cond_tex_1024()
 
