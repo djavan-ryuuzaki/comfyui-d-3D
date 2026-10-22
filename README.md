@@ -2,7 +2,7 @@
 
 Fork of [visualbruno/ComfyUI-Trellis2](https://github.com/visualbruno/ComfyUI-Trellis2) that also runs on the
 **Comfy-Org int8 / bf16 single-file models** (the ones used by ComfyUI's native TRELLIS.2 / Pixal3D nodes) and ships
-wheels for **Python 3.13 + PyTorch 2.12 + CUDA 13.2** on Windows and Linux.
+wheels for **PyTorch 2.12 + CUDA 13.2** on Windows (Python 3.13) and Linux (Python 3.12 and 3.13).
 
 ## What's new in this fork
 
@@ -32,14 +32,38 @@ python_embeded\python.exe -m pip install -r ComfyUI\custom_nodes\comfyui-d-3D\re
 
 Sources, commits and the patches needed for CUDA 13.2 are in `wheels/Windows/Torch2120/CUDA 13.2/BUILD.md`.
 
-### Wheels for Python 3.13 / Torch 2.12 / CUDA 13.2 (Linux)
+### Wheels for Python 3.12 and 3.13 / Torch 2.12 / CUDA 13.2 (Linux)
 
-In `wheels/Linux/Torch2120/CUDA 13.2`, same packages and GPUs as Windows. They work with torch 2.12.x `+cu130` or `+cu132`:
+In `wheels/Linux/Torch2120/CUDA 13.2`, same packages and GPUs as Windows, for Python 3.12 (`cp312`) and 3.13 (`cp313`).
+They work with torch 2.12.x `+cu130` or `+cu132`. Install the ones that match your Python:
 
 ```bash
 cd ComfyUI/custom_nodes/comfyui-d-3D
-pip install "wheels/Linux/Torch2120/CUDA 13.2/"*.whl
+PYTAG=cp$(python3 -c 'import sys; print(f"{sys.version_info[0]}{sys.version_info[1]}")')
+pip install "wheels/Linux/Torch2120/CUDA 13.2/"*-$PYTAG-$PYTAG-*.whl
 pip install -r requirements.txt
+```
+
+#### mmartial/comfyui-nvidia-docker (Docker / Kubernetes)
+
+That image installs torch at startup into the venv at `/comfy/mnt/venv` (Python 3.12 from Ubuntu 24.04) and picks the
+latest torch for cu130 by default. Pin torch 2.12 with this environment variable on the container or pod:
+
+```
+TORCH_LOCK=torch==2.12.0 torchvision==0.27.0
+```
+
+Restart the container so `init.bash` reinstalls torch, then install the `cp312` wheels inside the venv. To do it on
+every start, save this as `/comfy/mnt/user_script.bash` (the `run` folder); the constraint file comes from `TORCH_LOCK`
+and keeps pip from replacing torch:
+
+```bash
+#!/bin/bash
+source /comfy/mnt/venv/bin/activate
+cd /comfy/mnt/ComfyUI/custom_nodes/comfyui-d-3D
+pip3 install --constraint /comfy/mnt/torch_lock.txt "wheels/Linux/Torch2120/CUDA 13.2/"*-cp312-cp312-*.whl
+pip3 install --constraint /comfy/mnt/torch_lock.txt -r requirements.txt
+exit 0  # 0 = let init.bash start ComfyUI normally
 ```
 
 Build details are in `wheels/Linux/Torch2120/CUDA 13.2/BUILD.md`.
