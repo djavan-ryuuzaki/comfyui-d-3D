@@ -10,3 +10,5 @@ trimesh
 plyfile
 easydict
 git+https://github.com/EasternJournalist/utils3d.git@3fab839f0be9931dac7c8488eb0e1600c236e183
+pynanoinstantmeshes
+xatlas
