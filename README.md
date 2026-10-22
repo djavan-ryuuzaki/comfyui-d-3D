@@ -54,14 +54,16 @@ TORCH_LOCK=torch==2.12.0 torchvision==0.27.0
 ```
 
 Restart the container so `init.bash` reinstalls torch, then install the `cp312` wheels inside the venv. To do it on
-every start, save this as `/comfy/mnt/user_script.bash` (the `run` folder); the constraint file comes from `TORCH_LOCK`
-and keeps pip from replacing torch:
+every start, save this as `/comfy/mnt/user_script.bash` (the `run` folder). `--force-reinstall` matters: an older
+flex_gemm / cumesh / o_voxel with the same version number may already be in the venv, and pip would keep it (an old
+flex_gemm fails with `Unsupported data type` in `hashmap_insert_3d_idx_as_val_cuda`). The constraint file comes from
+`TORCH_LOCK` and keeps pip from replacing torch:
 
 ```bash
 #!/bin/bash
 source /comfy/mnt/venv/bin/activate
-cd /comfy/mnt/ComfyUI/custom_nodes/comfyui-d-3D
-pip3 install --constraint /comfy/mnt/torch_lock.txt "wheels/Linux/Torch2120/CUDA 13.2/"*-cp312-cp312-*.whl
+cd /comfy/mnt/ComfyUI/custom_nodes/comfyui-d-3D || exit 1  # with BASE_DIRECTORY: <BASE_DIRECTORY>/custom_nodes/comfyui-d-3D
+pip3 install --force-reinstall --no-deps "wheels/Linux/Torch2120/CUDA 13.2/"*-cp312-cp312-*.whl
 pip3 install --constraint /comfy/mnt/torch_lock.txt -r requirements.txt
 exit 0  # 0 = let init.bash start ComfyUI normally
 ```
