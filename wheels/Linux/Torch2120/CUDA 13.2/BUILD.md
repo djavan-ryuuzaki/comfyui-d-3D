@@ -1,4 +1,6 @@
-# Wheels for Python 3.13 / PyTorch 2.12 / CUDA 13.2 (Linux x86_64)
+# Wheels for Python 3.12 and 3.13 / PyTorch 2.12 / CUDA 13.2 (Linux x86_64)
+
+The `cp312` wheels are built the same way as the `cp313` ones listed below (same names with `cp312`).
 
 Same sources and commits as the Windows build in `wheels/Windows/Torch2120/CUDA 13.2`:
 
@@ -16,7 +18,7 @@ The extensions link `libcudart.so.13`, `libc10*` and `libtorch*`, so they load w
 
 ## Build environment
 
-- Ubuntu 24.04, GCC 13.3, Python 3.13
+- Ubuntu 24.04, GCC 13.3, Python 3.13 (`cp313`) and Python 3.12 (`cp312`, one venv per Python)
 - torch 2.12.0 (PyPI, `+cu130`), ninja, setuptools, wheel
 - nvcc 13.2.86 (`nvidia-cuda-nvcc`, `nvidia-cuda-crt`, `nvidia-nvvm`, `nvidia-cuda-cccl`, `nvidia-cuda-runtime` 13.2.86
   from PyPI, laid over the CUDA 13 libraries that torch installs). A regular CUDA 13.2 toolkit works the same way.
