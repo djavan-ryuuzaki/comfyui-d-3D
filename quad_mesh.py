@@ -39,6 +39,36 @@ def remesh_quads(vertices, faces, target_quads, crease_angle=0.0, smooth_iterati
     return out_vertices, out_quads
 
 
+def clean_triangle_mesh(vertices, faces, min_component_ratio=0.002):
+    """Remove what Instant Meshes cannot follow before remeshing: duplicate,
+    zero-area and non-manifold faces and tiny fragments, then close the holes
+    this leaves. TRELLIS meshes after hole filling carry many such faces.
+
+    Returns (vertices, faces).
+    """
+    import pymeshlab
+
+    ms = pymeshlab.MeshSet()
+    ms.add_mesh(pymeshlab.Mesh(vertex_matrix=np.asarray(vertices, dtype=np.float64),
+                               face_matrix=np.asarray(faces, dtype=np.int32)))
+    ms.meshing_remove_duplicate_vertices()
+    ms.meshing_remove_duplicate_faces()
+    ms.meshing_remove_null_faces()
+    ms.meshing_repair_non_manifold_edges(method=0)
+    ms.meshing_repair_non_manifold_vertices()
+    ms.meshing_remove_unreferenced_vertices()
+    min_faces = int(ms.current_mesh().face_number() * min_component_ratio)
+    if min_faces > 0:
+        ms.meshing_remove_connected_component_by_face_number(mincomponentsize=min_faces)
+    try:
+        ms.meshing_close_holes(maxholesize=100000, selfintersection=False)
+    except Exception as e:
+        print(f'Quad Remesh: closing holes in the input failed ({e}), continuing')
+    ms.meshing_remove_unreferenced_vertices()
+    mesh = ms.current_mesh()
+    return mesh.vertex_matrix(), mesh.face_matrix()
+
+
 def clean_quads(vertices, quads, min_component_ratio=0.001):
     """Weld vertices and drop degenerate quads, duplicate quads and tiny loose fragments.
 

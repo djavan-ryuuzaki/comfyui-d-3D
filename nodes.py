@@ -8584,6 +8584,7 @@ class Trellis2QuadRemesh:
                 "uv_texture_size": ("INT",{"default":2048,"min":256,"max":16384}),
                 "uv_padding": ("INT",{"default":4,"min":0,"max":64}),
                 "fill_holes": ("BOOLEAN",{"default":True}),
+                "clean_input": ("BOOLEAN",{"default":True}),
             }
         }
 
@@ -8593,10 +8594,14 @@ class Trellis2QuadRemesh:
     CATEGORY = "Trellis2Wrapper"
     DESCRIPTION = "Retopologizes the mesh into quads with Instant Meshes and UV-unwraps it without cutting any quad. Texture it with Trellis2 - Mesh Texturing and save it with Trellis2 - Export Quad Mesh (OBJ)."
 
-    def process(self, trimesh, target_quads, crease_angle, smooth_iterations, align_to_boundaries, deterministic, uv_texture_size, uv_padding, fill_holes):
+    def process(self, trimesh, target_quads, crease_angle, smooth_iterations, align_to_boundaries, deterministic, uv_texture_size, uv_padding, fill_holes, clean_input=True):
         vertices = np.asarray(trimesh.vertices)
         faces = np.asarray(trimesh.faces)
         print(f'Quad Remesh: input {len(vertices)} vertices, {len(faces)} faces')
+
+        if clean_input:
+            vertices, faces = quad_mesh.clean_triangle_mesh(vertices, faces)
+            print(f'Quad Remesh: cleaned input {len(vertices)} vertices, {len(faces)} faces')
 
         quad_vertices, quads = quad_mesh.remesh_quads(vertices, faces, target_quads, crease_angle, smooth_iterations, align_to_boundaries, deterministic)
         print(f'Quad Remesh: {len(quad_vertices)} vertices, {len(quads)} quads')
