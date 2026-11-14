@@ -8661,6 +8661,69 @@ class Trellis2ExportQuadMesh:
             "result": (str(output_obj_path), str(relative_path), file_3d,),
         }
 
+class Trellis2PreviewQuadMesh:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "save_output": ("BOOLEAN", {"default": True, "tooltip": "Save the OBJ in the output folder. When off it goes to the temp folder and is only previewed."}),
+                "filename_prefix": ("STRING", {"default": "3D/Trellis2_quad"}),
+            },
+            "optional": {
+                "trimesh": ("TRIMESH", {"tooltip": "Mesh from Trellis2 - Quad Remesh (textured or not)."}),
+                "obj_path": ("STRING", {"forceInput": True, "tooltip": "Or an OBJ already saved, e.g. obj_path from Trellis2 - Export Quad Mesh (OBJ)."}),
+            }
+        }
+
+    RETURN_TYPES = ("STRING","STRING",)
+    RETURN_NAMES = ("obj_path","relative_path",)
+    FUNCTION = "process"
+    CATEGORY = "Trellis2Wrapper"
+    OUTPUT_NODE = True
+    DESCRIPTION = "Saves a quad mesh as OBJ and previews it with its quad edges, like Blender (no triangle diagonals). Shading: solid, texture or vertex color; wireframe, smooth shading and triangle highlight toggles. Drag to orbit (left or middle), Shift/right drag to pan, wheel to zoom, F to frame, numpad 1/3/7 for views."
+
+    def process(self, save_output, filename_prefix, trimesh=None, obj_path=None):
+        if trimesh is None and not obj_path:
+            raise Exception('Preview Quad Mesh: connect a trimesh or an obj_path')
+
+        if trimesh is not None:
+            if save_output:
+                base_dir, file_type = folder_paths.get_output_directory(), "output"
+            else:
+                base_dir, file_type = folder_paths.get_temp_directory(), "temp"
+                filename_prefix = filename_prefix + '_preview'
+            full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, base_dir)
+            name = f'{filename}_{counter:05}_.obj'
+            output_obj_path = Path(full_output_folder, name)
+            output_obj_path.parent.mkdir(parents=True, exist_ok=True)
+            quad_count, triangle_count = quad_mesh.write_quad_obj(trimesh, str(output_obj_path), f'{filename}_{counter:05}')
+            print(f'Preview Quad Mesh: {quad_count} quads, {triangle_count} triangles -> {output_obj_path}')
+        else:
+            output_obj_path = Path(obj_path)
+            if not output_obj_path.is_absolute():
+                output_obj_path = Path(folder_paths.get_output_directory(), obj_path)
+            if not output_obj_path.exists():
+                raise Exception(f'Preview Quad Mesh: {output_obj_path} not found')
+            name, subfolder, file_type = None, None, None
+            resolved = output_obj_path.resolve()
+            for base_dir, t in ((folder_paths.get_output_directory(), "output"), (folder_paths.get_temp_directory(), "temp"), (folder_paths.get_input_directory(), "input")):
+                try:
+                    rel = resolved.relative_to(Path(base_dir).resolve())
+                except ValueError:
+                    continue
+                name, subfolder, file_type = rel.name, rel.parent.as_posix(), t
+                if subfolder == '.':
+                    subfolder = ''
+                break
+            if name is None:
+                raise Exception(f'Preview Quad Mesh: {output_obj_path} must be inside the ComfyUI output, temp or input folder to be previewed')
+
+        relative_path = Path(subfolder) / name
+        return {
+            "ui": {"quad_mesh": [{"filename": name, "subfolder": subfolder, "type": file_type}]},
+            "result": (str(output_obj_path), str(relative_path),),
+        }
+
 NODE_CLASS_MAPPINGS = {
     "Trellis2LoadModel": Trellis2LoadModel,
     "Trellis2LoadModelComfy": Trellis2LoadModelComfy,
@@ -8745,6 +8808,7 @@ NODE_CLASS_MAPPINGS = {
     "Trellis2StringToFile3D": Trellis2StringToFile3D,
     "Trellis2QuadRemesh": Trellis2QuadRemesh,
     "Trellis2ExportQuadMesh": Trellis2ExportQuadMesh,
+    "Trellis2PreviewQuadMesh": Trellis2PreviewQuadMesh,
     }
     
 
@@ -8832,4 +8896,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "Trellis2StringToFile3D": "Trellis2 - String To File3D",
     "Trellis2QuadRemesh": "Trellis2 - Quad Remesh (Instant Meshes)",
     "Trellis2ExportQuadMesh": "Trellis2 - Export Quad Mesh (OBJ)",
+    "Trellis2PreviewQuadMesh": "Trellis2 - Preview Quad Mesh",
     }
