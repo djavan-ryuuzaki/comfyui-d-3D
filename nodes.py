@@ -45,6 +45,7 @@ from .trellis2.modules.sparse import config as sparseconfig
 from .trellis2.pipelines import samplers
 from .trellis2.modules.sparse import SparseTensor
 from . import quad_mesh
+from . import uv_paint
 
 script_directory = os.path.dirname(os.path.abspath(__file__))
 comfy_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
@@ -8724,6 +8725,135 @@ class Trellis2PreviewQuadMesh:
             "result": (str(output_obj_path), str(relative_path),),
         }
 
+class Trellis2UVLayout:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "trimesh": ("TRIMESH", {"tooltip": "Mesh with UVs: from Mesh Texturing, UV Unwrap and Rasterize, UnWrap Trimesh or Quad Remesh."}),
+                "resolution": ("INT", {"default": 0, "min": 0, "max": 16384, "step": 256, "tooltip": "0 = same size as the mesh texture (2048 when the mesh has none)."}),
+                "background": (["texture", "checker", "white", "gray", "black"], {"default": "texture", "tooltip": "What is under the UV lines in uv_layout. 'texture' uses the mesh base color (checker when it has none)."}),
+                "line_color": ("STRING", {"default": "#00FF00", "tooltip": "#RRGGBB or r,g,b"}),
+                "line_thickness": ("INT", {"default": 1, "min": 0, "max": 16, "tooltip": "Thickness of the polygon edges. 0 draws only the seams (island borders), good for dense meshes straight from Trellis."}),
+                "seam_color": ("STRING", {"default": "#FF3030", "tooltip": "Color of the island borders (UV seams)."}),
+                "seam_thickness": ("INT", {"default": 2, "min": 0, "max": 16, "tooltip": "0 hides the seams."}),
+                "line_opacity": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.05}),
+                "show_quads": ("BOOLEAN", {"default": True, "tooltip": "Hide the diagonals of quads (meshes from Quad Remesh), like Blender's UV editor."}),
+                "dim_outside_islands": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1.0, "step": 0.05, "tooltip": "Darken the area outside the islands in uv_layout so you can see what is used."}),
+                "save_files": ("BOOLEAN", {"default": True, "tooltip": "Save <prefix>_texture.png, <prefix>_uv_lines.png (transparent, for a layer on top) and <prefix>_uv_layout.png in the output folder."}),
+                "filename_prefix": ("STRING", {"default": "3D/uv_paint/mesh"}),
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE", "IMAGE", "MASK", "MASK", "STRING",)
+    RETURN_NAMES = ("uv_layout", "texture", "uv_lines_mask", "islands_mask", "folder",)
+    FUNCTION = "process"
+    CATEGORY = "Trellis2Wrapper"
+    OUTPUT_NODE = True
+    DESCRIPTION = ("Exports the UV layout of a mesh to paint its texture in Krita, Photoshop, GIMP etc. "
+                   "Open <prefix>_texture.png, add <prefix>_uv_lines.png as a layer on top as a guide, paint, hide the lines "
+                   "and save. Then load the painted PNG with Load Image and connect it to Trellis2 - Apply Painted Texture.")
+
+    def process(self, trimesh, resolution, background, line_color, line_thickness, seam_color, seam_thickness,
+                line_opacity, show_quads, dim_outside_islands, save_files, filename_prefix):
+        lc = uv_paint.parse_color(line_color, (0, 255, 0))
+        sc = uv_paint.parse_color(seam_color, (255, 48, 48))
+        r = uv_paint.build_uv_layout(trimesh, resolution, background, lc, sc, line_thickness, seam_thickness,
+                                     line_opacity, show_quads, dim_outside_islands)
+        w, h = r['size']
+        print(f'UV Layout: {w}x{h}, {len(trimesh.faces)} faces, island coverage {r["islands"].mean() * 100:.1f}%')
+
+        layout8 = (r['layout'] * 255).round().astype(np.uint8)
+        tex8 = (r['texture'] * 255).round().astype(np.uint8)
+
+        if save_files:
+            base_dir, file_type = folder_paths.get_output_directory(), "output"
+        else:
+            base_dir, file_type = folder_paths.get_temp_directory(), "temp"
+            filename_prefix = filename_prefix + '_preview'
+        full_output_folder, filename, counter, subfolder, _ = folder_paths.get_save_image_path(filename_prefix, base_dir, w, h)
+        os.makedirs(full_output_folder, exist_ok=True)
+        stem = f'{filename}_{counter:05}'
+        layout_name = f'{stem}_uv_layout.png'
+        Image.fromarray(layout8).save(os.path.join(full_output_folder, layout_name), compress_level=4)
+        if save_files:
+            base = r['base_color']
+            if base is not None and base.size == (w, h):
+                base.save(os.path.join(full_output_folder, f'{stem}_texture.png'), compress_level=4)
+            else:
+                Image.fromarray(tex8).save(os.path.join(full_output_folder, f'{stem}_texture.png'), compress_level=4)
+            rgba = uv_paint.lines_rgba(r['edge_lines'], r['seam_lines'], lc, sc)
+            Image.fromarray(rgba, 'RGBA').save(os.path.join(full_output_folder, f'{stem}_uv_lines.png'), compress_level=4)
+            mask8 = (r['islands'] * 255).round().astype(np.uint8)
+            Image.fromarray(mask8).save(os.path.join(full_output_folder, f'{stem}_islands_mask.png'), compress_level=4)
+            print(f'UV Layout: saved {stem}_texture.png, {stem}_uv_lines.png, {layout_name} in {full_output_folder}')
+
+        return {
+            "ui": {"images": [{"filename": layout_name, "subfolder": subfolder, "type": file_type}]},
+            "result": (
+                torch.from_numpy(r['layout'])[None,],
+                torch.from_numpy(r['texture'])[None,],
+                torch.from_numpy(r['lines'])[None,],
+                torch.from_numpy(r['islands'])[None,],
+                full_output_folder,
+            ),
+        }
+
+class Trellis2ApplyPaintedTexture:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "trimesh": ("TRIMESH", {"tooltip": "The same mesh you exported with Trellis2 - UV Layout (its UVs are kept)."}),
+                "painted_texture": ("IMAGE", {"tooltip": "The painted texture, e.g. from Load Image. Any size; square like the original is best."}),
+                "bleed_pixels": ("INT", {"default": 8, "min": -1, "max": 512, "tooltip": "Extend the painted colors past the island borders so seams do not show dark lines. -1 fills the whole empty area, 0 turns it off."}),
+                "keep_original_alpha": ("BOOLEAN", {"default": True, "tooltip": "Keep the alpha channel of the mesh's current base color texture."}),
+                "alpha_mode": (["keep", "OPAQUE", "MASK", "BLEND"], {"default": "keep"}),
+                "double_side_material": (["keep", "true", "false"], {"default": "keep"}),
+            },
+            "optional": {
+                "paint_layer_mask": ("MASK", {"tooltip": "When the PNG holds only your paint layer with transparency: connect the MASK from Load Image. Transparent parts keep the mesh's current texture."}),
+                "metallic_roughness_texture": ("IMAGE", {"tooltip": "Optional painted metallic/roughness texture (G = roughness, B = metallic). Without it the mesh's current one is kept."}),
+            }
+        }
+
+    RETURN_TYPES = ("TRIMESH", "IMAGE", "IMAGE",)
+    RETURN_NAMES = ("trimesh", "base_color_texture", "metallic_roughness_texture",)
+    FUNCTION = "process"
+    CATEGORY = "Trellis2Wrapper"
+    DESCRIPTION = ("Puts a texture you painted outside ComfyUI back on the mesh. Save it with Trellis2 - Export Mesh (GLB) "
+                   "or preview it with Trellis2 - Preview Quad Mesh.")
+
+    def process(self, trimesh, painted_texture, bleed_pixels, keep_original_alpha, alpha_mode, double_side_material,
+                paint_layer_mask=None, metallic_roughness_texture=None):
+        painted = painted_texture[0].cpu().numpy()[..., :3].astype(np.float32)
+        layer_alpha = None
+        if paint_layer_mask is not None:
+            m = paint_layer_mask
+            if m.dim() == 3:
+                m = m[0]
+            # Load Image gives MASK = 1 where the PNG is transparent.
+            layer_alpha = 1.0 - m.cpu().numpy().astype(np.float32)
+            if float(layer_alpha.min()) >= 0.999:
+                layer_alpha = None
+        mr = None
+        if metallic_roughness_texture is not None:
+            mr = metallic_roughness_texture[0].cpu().numpy()[..., :3].astype(np.float32)
+
+        out, base_out, mr_out = uv_paint.apply_painted_texture(
+            trimesh, painted, bleed_pixels=bleed_pixels, layer_alpha=layer_alpha,
+            keep_alpha=keep_original_alpha, metallic_roughness_rgb=mr,
+            alpha_mode=None if alpha_mode == 'keep' else alpha_mode,
+            double_sided=None if double_side_material == 'keep' else double_side_material == 'true')
+        print(f'Apply Painted Texture: {base_out.size[0]}x{base_out.size[1]} base color on {len(out.faces)} faces')
+
+        base_t = pil2tensor(base_out.convert('RGB'))
+        if mr_out is not None:
+            mr_t = pil2tensor(mr_out.convert('RGB'))
+        else:
+            mr_t = torch.zeros((1, 64, 64, 3), dtype=torch.float32)
+        return (out, base_t, mr_t,)
+
 NODE_CLASS_MAPPINGS = {
     "Trellis2LoadModel": Trellis2LoadModel,
     "Trellis2LoadModelComfy": Trellis2LoadModelComfy,
@@ -8809,6 +8939,8 @@ NODE_CLASS_MAPPINGS = {
     "Trellis2QuadRemesh": Trellis2QuadRemesh,
     "Trellis2ExportQuadMesh": Trellis2ExportQuadMesh,
     "Trellis2PreviewQuadMesh": Trellis2PreviewQuadMesh,
+    "Trellis2UVLayout": Trellis2UVLayout,
+    "Trellis2ApplyPaintedTexture": Trellis2ApplyPaintedTexture,
     }
     
 
@@ -8897,4 +9029,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "Trellis2QuadRemesh": "Trellis2 - Quad Remesh (Instant Meshes)",
     "Trellis2ExportQuadMesh": "Trellis2 - Export Quad Mesh (OBJ)",
     "Trellis2PreviewQuadMesh": "Trellis2 - Preview Quad Mesh",
+    "Trellis2UVLayout": "Trellis2 - UV Layout (for painting)",
+    "Trellis2ApplyPaintedTexture": "Trellis2 - Apply Painted Texture",
     }
