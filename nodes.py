@@ -9032,3 +9032,12 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "Trellis2UVLayout": "Trellis2 - UV Layout (for painting)",
     "Trellis2ApplyPaintedTexture": "Trellis2 - Apply Painted Texture",
     }
+
+# QwenTex: mesh texturing with Qwen Image 2.1 (UltraTex prep/bake). Kept optional so a missing
+# dependency (moderngl) does not stop the TRELLIS.2 nodes from loading.
+try:
+    from .qwen_tex.nodes import NODE_CLASS_MAPPINGS as _QWENTEX_NODES, NODE_DISPLAY_NAME_MAPPINGS as _QWENTEX_NAMES
+    NODE_CLASS_MAPPINGS.update(_QWENTEX_NODES)
+    NODE_DISPLAY_NAME_MAPPINGS.update(_QWENTEX_NAMES)
+except Exception as _e:
+    print(f"comfyui-d-3D: QwenTex nodes not loaded: {_e}")
