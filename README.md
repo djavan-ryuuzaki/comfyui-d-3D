@@ -33,6 +33,8 @@ wheels for **PyTorch 2.12 + CUDA 13.2** on Windows (Python 3.13) and Linux (Pyth
   - **QwenTex - Split Atlas** → 6 views → **QwenTex - Bake Texture (GLB)**, saved in `output/3D/qwentex/`.
   - Second pass for 4 more views at 45°: **QwenTex - Rotate Rig** → **QwenTex - Render Views** (gives `inpaint_atlas` + `regenerate_mask` for `Apply Fun ControlNet`, so what the first pass saw head-on is kept) plus a Control Atlas of the rotated rig → sampler → Split Atlas (rotated prep) → Bake `prep_2` / `albedo_views_2`.
   - Example: `example_workflows/QwenTex_Qwen21_FunControlNet.json`. Needs `moderngl` (in requirements.txt).
+- Bridge to ComfyUI's native mesh nodes (ComfyUI 0.45+: RemeshMesh, DecimateMesh, UnwrapMesh, BakeNormalMapFromMesh, BakeAmbientOcclusion, ApplyTextureToMesh...): **D3D - Native Mesh -> Trimesh** and **D3D - Trimesh -> Native Mesh** (category `Trellis2Wrapper/bridge`). Geometry is not moved; UVs are flipped between glTF (native, v down) and trimesh (v up), and base color / metallic-roughness textures are carried over.
+- Image -> low-poly game character, no Blender: `example_workflows/D3D_Image_to_LowPoly_Character.json`. Pixal3D / TRELLIS.2 int8 (native) -> watertight RemeshMesh -> 12k-triangle DecimateMesh (or ~6k-quad **Quad Remesh**) -> UnwrapMesh -> normal map + AO baked from the high-poly -> metallic/roughness from the TRELLIS texture stage -> albedo from **QwenTex** (or TRELLIS) -> `output/3d/D3D_char_lowpoly_*.glb`. Based on the official Comfy-Org template `3d_pixal3d_trellis2_image_to_model` (MIT).
 
 Model files: [Comfy-Org/TRELLIS.2](https://huggingface.co/Comfy-Org/TRELLIS.2) and [Comfy-Org/Pixal3D](https://huggingface.co/Comfy-Org/Pixal3D).
 

@@ -9041,3 +9041,11 @@ try:
     NODE_DISPLAY_NAME_MAPPINGS.update(_QWENTEX_NAMES)
 except Exception as _e:
     print(f"comfyui-d-3D: QwenTex nodes not loaded: {_e}")
+
+# Bridge between ComfyUI's native MESH (RemeshMesh, DecimateMesh, Bake* nodes) and TRIMESH.
+try:
+    from .mesh_bridge import NODE_CLASS_MAPPINGS as _BRIDGE_NODES, NODE_DISPLAY_NAME_MAPPINGS as _BRIDGE_NAMES
+    NODE_CLASS_MAPPINGS.update(_BRIDGE_NODES)
+    NODE_DISPLAY_NAME_MAPPINGS.update(_BRIDGE_NAMES)
+except Exception as _e:
+    print(f"comfyui-d-3D: mesh bridge nodes not loaded: {_e}")
