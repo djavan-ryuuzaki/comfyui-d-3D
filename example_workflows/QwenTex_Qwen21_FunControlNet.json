@@ -1,0 +1,1542 @@
+{
+ "id": "d3d-qwentex-0001",
+ "revision": 0,
+ "last_node_id": 19,
+ "last_link_id": 28,
+ "nodes": [
+  {
+   "id": 1,
+   "type": "Trellis2LoadMesh",
+   "pos": [
+    0,
+    0
+   ],
+   "size": [
+    380,
+    90
+   ],
+   "flags": {},
+   "order": 0,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "glb_path",
+     "type": "STRING",
+     "widget": {
+      "name": "glb_path"
+     },
+     "link": null
+    },
+    {
+     "name": "only_vertices_and_faces",
+     "type": "BOOLEAN",
+     "widget": {
+      "name": "only_vertices_and_faces"
+     },
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "name": "trimesh",
+     "type": "TRIMESH",
+     "links": [
+      1
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "Trellis2LoadMesh"
+   },
+   "widgets_values": [
+    "mesh.glb",
+    false
+   ],
+   "title": "Malha (ou conecte a sa\u00edda TRIMESH do TRELLIS.2)"
+  },
+  {
+   "id": 2,
+   "type": "LoadImage",
+   "pos": [
+    0,
+    140
+   ],
+   "size": [
+    380,
+    360
+   ],
+   "flags": {},
+   "order": 1,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "image",
+     "type": "COMBO",
+     "widget": {
+      "name": "image"
+     },
+     "link": null
+    },
+    {
+     "name": "upload",
+     "type": "IMAGEUPLOAD",
+     "widget": {
+      "name": "upload"
+     },
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "name": "IMAGE",
+     "type": "IMAGE",
+     "links": [
+      2
+     ]
+    },
+    {
+     "name": "MASK",
+     "type": "MASK",
+     "links": [
+      3
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "LoadImage"
+   },
+   "widgets_values": [
+    "referencia.png",
+    "image"
+   ],
+   "title": "Imagem de refer\u00eancia (frente, fundo transparente)"
+  },
+  {
+   "id": 3,
+   "type": "D3DQwenTexPrep",
+   "pos": [
+    420,
+    0
+   ],
+   "size": [
+    380,
+    280
+   ],
+   "flags": {},
+   "order": 2,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "reference_image",
+     "type": "IMAGE",
+     "link": 2
+    },
+    {
+     "name": "trimesh",
+     "type": "TRIMESH",
+     "link": 1,
+     "shape": 7
+    },
+    {
+     "name": "reference_mask",
+     "type": "MASK",
+     "link": 3,
+     "shape": 7
+    },
+    {
+     "name": "render_size",
+     "type": "INT",
+     "widget": {
+      "name": "render_size"
+     },
+     "link": null
+    },
+    {
+     "name": "uv_mode",
+     "type": "COMBO",
+     "widget": {
+      "name": "uv_mode"
+     },
+     "link": null
+    },
+    {
+     "name": "atlas_size",
+     "type": "INT",
+     "widget": {
+      "name": "atlas_size"
+     },
+     "link": null
+    },
+    {
+     "name": "reference_alignment",
+     "type": "COMBO",
+     "widget": {
+      "name": "reference_alignment"
+     },
+     "link": null
+    },
+    {
+     "name": "mask_meaning",
+     "type": "COMBO",
+     "widget": {
+      "name": "mask_meaning"
+     },
+     "link": null
+    },
+    {
+     "name": "mesh_path",
+     "type": "STRING",
+     "widget": {
+      "name": "mesh_path"
+     },
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "name": "prep",
+     "type": "QWENTEX_PREP",
+     "links": [
+      4,
+      21,
+      23
+     ]
+    },
+    {
+     "name": "normal_views",
+     "type": "IMAGE",
+     "links": []
+    },
+    {
+     "name": "reference",
+     "type": "IMAGE",
+     "links": []
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "D3DQwenTexPrep"
+   },
+   "widgets_values": [
+    2048,
+    "keep_existing",
+    2048,
+    "fit_front_silhouette",
+    "background (LoadImage)",
+    ""
+   ],
+   "color": "#233",
+   "bgcolor": "#355"
+  },
+  {
+   "id": 4,
+   "type": "D3DQwenTexControlAtlas",
+   "pos": [
+    420,
+    330
+   ],
+   "size": [
+    380,
+    260
+   ],
+   "flags": {},
+   "order": 3,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "prep",
+     "type": "QWENTEX_PREP",
+     "link": 4
+    },
+    {
+     "name": "tile_size",
+     "type": "INT",
+     "widget": {
+      "name": "tile_size"
+     },
+     "link": null
+    },
+    {
+     "name": "control",
+     "type": "COMBO",
+     "widget": {
+      "name": "control"
+     },
+     "link": null
+    },
+    {
+     "name": "extra_prompt",
+     "type": "STRING",
+     "widget": {
+      "name": "extra_prompt"
+     },
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "name": "control_atlas",
+     "type": "IMAGE",
+     "links": [
+      8,
+      25
+     ]
+    },
+    {
+     "name": "mask_atlas",
+     "type": "MASK",
+     "links": []
+    },
+    {
+     "name": "reference_tile",
+     "type": "IMAGE",
+     "links": [
+      11
+     ]
+    },
+    {
+     "name": "prompt",
+     "type": "STRING",
+     "links": [
+      12
+     ]
+    },
+    {
+     "name": "width",
+     "type": "INT",
+     "links": [
+      13
+     ]
+    },
+    {
+     "name": "height",
+     "type": "INT",
+     "links": [
+      14
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "D3DQwenTexControlAtlas"
+   },
+   "widgets_values": [
+    768,
+    "depth",
+    ""
+   ],
+   "color": "#233",
+   "bgcolor": "#355"
+  },
+  {
+   "id": 5,
+   "type": "UNETLoader",
+   "pos": [
+    840,
+    -260
+   ],
+   "size": [
+    380,
+    90
+   ],
+   "flags": {},
+   "order": 4,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "unet_name",
+     "type": "COMBO",
+     "widget": {
+      "name": "unet_name"
+     },
+     "link": null
+    },
+    {
+     "name": "weight_dtype",
+     "type": "COMBO",
+     "widget": {
+      "name": "weight_dtype"
+     },
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "name": "MODEL",
+     "type": "MODEL",
+     "links": [
+      5
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "UNETLoader"
+   },
+   "widgets_values": [
+    "QWEN2\\qwen_image_2.1_int8_convrot.safetensors",
+    "default"
+   ],
+   "color": "#432",
+   "bgcolor": "#653"
+  },
+  {
+   "id": 6,
+   "type": "CLIPLoader",
+   "pos": [
+    840,
+    -130
+   ],
+   "size": [
+    380,
+    110
+   ],
+   "flags": {},
+   "order": 5,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "clip_name",
+     "type": "COMBO",
+     "widget": {
+      "name": "clip_name"
+     },
+     "link": null
+    },
+    {
+     "name": "type",
+     "type": "COMBO",
+     "widget": {
+      "name": "type"
+     },
+     "link": null
+    },
+    {
+     "name": "device",
+     "type": "COMBO",
+     "link": null,
+     "shape": 7,
+     "widget": {
+      "name": "device"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "CLIP",
+     "type": "CLIP",
+     "links": [
+      9
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "CLIPLoader"
+   },
+   "widgets_values": [
+    "qwen3vl_8b_int8_convrot.safetensors",
+    "qwen_image",
+    "default"
+   ],
+   "color": "#432",
+   "bgcolor": "#653"
+  },
+  {
+   "id": 7,
+   "type": "VAELoader",
+   "pos": [
+    840,
+    20
+   ],
+   "size": [
+    380,
+    60
+   ],
+   "flags": {},
+   "order": 6,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "vae_name",
+     "type": "COMBO",
+     "widget": {
+      "name": "vae_name"
+     },
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "name": "VAE",
+     "type": "VAE",
+     "links": [
+      7,
+      10,
+      20
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "VAELoader"
+   },
+   "widgets_values": [
+    "qwen_image_2.1_vae_bf16.safetensors"
+   ],
+   "color": "#432",
+   "bgcolor": "#653"
+  },
+  {
+   "id": 8,
+   "type": "ModelPatchLoader",
+   "pos": [
+    840,
+    120
+   ],
+   "size": [
+    380,
+    60
+   ],
+   "flags": {},
+   "order": 7,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "name",
+     "type": "COMBO",
+     "widget": {
+      "name": "name"
+     },
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "name": "MODEL_PATCH",
+     "type": "MODEL_PATCH",
+     "links": [
+      6
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "ModelPatchLoader"
+   },
+   "widgets_values": [
+    "qwen_image_2.1_fun_controlnet_union_int8_convrot.safetensors"
+   ],
+   "color": "#432",
+   "bgcolor": "#653"
+  },
+  {
+   "id": 9,
+   "type": "ZImageFunControlnet",
+   "pos": [
+    840,
+    220
+   ],
+   "size": [
+    380,
+    200
+   ],
+   "flags": {},
+   "order": 8,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "model",
+     "type": "MODEL",
+     "link": 5
+    },
+    {
+     "name": "model_patch",
+     "type": "MODEL_PATCH",
+     "link": 6
+    },
+    {
+     "name": "vae",
+     "type": "VAE",
+     "link": 7
+    },
+    {
+     "name": "image",
+     "type": "IMAGE",
+     "link": 8,
+     "shape": 7
+    },
+    {
+     "name": "inpaint_image",
+     "type": "IMAGE",
+     "link": null,
+     "shape": 7
+    },
+    {
+     "name": "mask",
+     "type": "MASK",
+     "link": null,
+     "shape": 7
+    },
+    {
+     "name": "strength",
+     "type": "FLOAT",
+     "widget": {
+      "name": "strength"
+     },
+     "link": null
+    },
+    {
+     "name": "start_percent",
+     "type": "FLOAT",
+     "widget": {
+      "name": "start_percent"
+     },
+     "link": null
+    },
+    {
+     "name": "end_percent",
+     "type": "FLOAT",
+     "widget": {
+      "name": "end_percent"
+     },
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "name": "MODEL",
+     "type": "MODEL",
+     "links": [
+      15
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "ZImageFunControlnet"
+   },
+   "widgets_values": [
+    1.0,
+    0.0,
+    1.0
+   ],
+   "color": "#432",
+   "bgcolor": "#653"
+  },
+  {
+   "id": 10,
+   "type": "TextEncodeQwenImage21",
+   "pos": [
+    840,
+    460
+   ],
+   "size": [
+    380,
+    300
+   ],
+   "flags": {},
+   "order": 9,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "clip",
+     "type": "CLIP",
+     "link": 9
+    },
+    {
+     "name": "images.image_1",
+     "type": "IMAGE",
+     "link": 11,
+     "shape": 7
+    },
+    {
+     "name": "vae",
+     "type": "VAE",
+     "link": 10,
+     "shape": 7
+    },
+    {
+     "name": "prompt",
+     "type": "STRING",
+     "widget": {
+      "name": "prompt"
+     },
+     "link": 12
+    },
+    {
+     "name": "negative_prompt",
+     "type": "STRING",
+     "widget": {
+      "name": "negative_prompt"
+     },
+     "link": null
+    },
+    {
+     "name": "resolution",
+     "type": "INT",
+     "widget": {
+      "name": "resolution"
+     },
+     "link": null
+    },
+    {
+     "name": "images.image_2",
+     "type": "IMAGE",
+     "link": null,
+     "shape": 7
+    }
+   ],
+   "outputs": [
+    {
+     "name": "positive",
+     "type": "CONDITIONING",
+     "links": [
+      16
+     ]
+    },
+    {
+     "name": "negative",
+     "type": "CONDITIONING",
+     "links": [
+      17
+     ]
+    },
+    {
+     "name": "latent",
+     "type": "LATENT",
+     "links": []
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "TextEncodeQwenImage21"
+   },
+   "widgets_values": [
+    "",
+    "",
+    1024
+   ],
+   "color": "#432",
+   "bgcolor": "#653"
+  },
+  {
+   "id": 11,
+   "type": "EmptyLatentImage",
+   "pos": [
+    840,
+    800
+   ],
+   "size": [
+    300,
+    110
+   ],
+   "flags": {},
+   "order": 10,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "width",
+     "type": "INT",
+     "widget": {
+      "name": "width"
+     },
+     "link": 13
+    },
+    {
+     "name": "height",
+     "type": "INT",
+     "widget": {
+      "name": "height"
+     },
+     "link": 14
+    },
+    {
+     "name": "batch_size",
+     "type": "INT",
+     "widget": {
+      "name": "batch_size"
+     },
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "name": "LATENT",
+     "type": "LATENT",
+     "links": [
+      18
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "EmptyLatentImage"
+   },
+   "widgets_values": [
+    2304,
+    1536,
+    1
+   ]
+  },
+  {
+   "id": 12,
+   "type": "KSampler",
+   "pos": [
+    1260,
+    0
+   ],
+   "size": [
+    320,
+    470
+   ],
+   "flags": {},
+   "order": 11,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "model",
+     "type": "MODEL",
+     "link": 15
+    },
+    {
+     "name": "positive",
+     "type": "CONDITIONING",
+     "link": 16
+    },
+    {
+     "name": "negative",
+     "type": "CONDITIONING",
+     "link": 17
+    },
+    {
+     "name": "latent_image",
+     "type": "LATENT",
+     "link": 18
+    },
+    {
+     "name": "seed",
+     "type": "INT",
+     "widget": {
+      "name": "seed"
+     },
+     "link": null
+    },
+    {
+     "name": "steps",
+     "type": "INT",
+     "widget": {
+      "name": "steps"
+     },
+     "link": null
+    },
+    {
+     "name": "cfg",
+     "type": "FLOAT",
+     "widget": {
+      "name": "cfg"
+     },
+     "link": null
+    },
+    {
+     "name": "sampler_name",
+     "type": "COMBO",
+     "widget": {
+      "name": "sampler_name"
+     },
+     "link": null
+    },
+    {
+     "name": "scheduler",
+     "type": "COMBO",
+     "widget": {
+      "name": "scheduler"
+     },
+     "link": null
+    },
+    {
+     "name": "denoise",
+     "type": "FLOAT",
+     "widget": {
+      "name": "denoise"
+     },
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "name": "LATENT",
+     "type": "LATENT",
+     "links": [
+      19
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "KSampler"
+   },
+   "widgets_values": [
+    42,
+    "fixed",
+    30,
+    1,
+    "euler",
+    "simple",
+    1
+   ]
+  },
+  {
+   "id": 13,
+   "type": "VAEDecode",
+   "pos": [
+    1260,
+    520
+   ],
+   "size": [
+    220,
+    50
+   ],
+   "flags": {},
+   "order": 12,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "samples",
+     "type": "LATENT",
+     "link": 19
+    },
+    {
+     "name": "vae",
+     "type": "VAE",
+     "link": 20
+    }
+   ],
+   "outputs": [
+    {
+     "name": "IMAGE",
+     "type": "IMAGE",
+     "links": [
+      22
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "VAEDecode"
+   },
+   "widgets_values": []
+  },
+  {
+   "id": 14,
+   "type": "D3DQwenTexSplitAtlas",
+   "pos": [
+    1620,
+    0
+   ],
+   "size": [
+    320,
+    110
+   ],
+   "flags": {},
+   "order": 13,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "prep",
+     "type": "QWENTEX_PREP",
+     "link": 21
+    },
+    {
+     "name": "atlas",
+     "type": "IMAGE",
+     "link": 22
+    },
+    {
+     "name": "clean_background",
+     "type": "BOOLEAN",
+     "widget": {
+      "name": "clean_background"
+     },
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "name": "views",
+     "type": "IMAGE",
+     "links": [
+      24
+     ]
+    },
+    {
+     "name": "masks",
+     "type": "MASK",
+     "links": []
+    },
+    {
+     "name": "atlas_clean",
+     "type": "IMAGE",
+     "links": [
+      26
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "D3DQwenTexSplitAtlas"
+   },
+   "widgets_values": [
+    true
+   ],
+   "color": "#233",
+   "bgcolor": "#355"
+  },
+  {
+   "id": 15,
+   "type": "D3DQwenTexBake",
+   "pos": [
+    1620,
+    160
+   ],
+   "size": [
+    340,
+    420
+   ],
+   "flags": {},
+   "order": 14,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "prep",
+     "type": "QWENTEX_PREP",
+     "link": 23
+    },
+    {
+     "name": "albedo_views",
+     "type": "IMAGE",
+     "link": 24
+    },
+    {
+     "name": "prep_2",
+     "type": "QWENTEX_PREP",
+     "link": null,
+     "shape": 7
+    },
+    {
+     "name": "albedo_views_2",
+     "type": "IMAGE",
+     "link": null,
+     "shape": 7
+    },
+    {
+     "name": "texture_size",
+     "type": "INT",
+     "widget": {
+      "name": "texture_size"
+     },
+     "link": null
+    },
+    {
+     "name": "filename_prefix",
+     "type": "STRING",
+     "widget": {
+      "name": "filename_prefix"
+     },
+     "link": null
+    },
+    {
+     "name": "view_weight_power",
+     "type": "FLOAT",
+     "widget": {
+      "name": "view_weight_power"
+     },
+     "link": null
+    },
+    {
+     "name": "best_view_mix",
+     "type": "FLOAT",
+     "widget": {
+      "name": "best_view_mix"
+     },
+     "link": null
+    },
+    {
+     "name": "edge_feather_px",
+     "type": "FLOAT",
+     "widget": {
+      "name": "edge_feather_px"
+     },
+     "link": null
+    },
+    {
+     "name": "views_2_use",
+     "type": "COMBO",
+     "widget": {
+      "name": "views_2_use"
+     },
+     "link": null
+    },
+    {
+     "name": "fusion",
+     "type": "COMBO",
+     "widget": {
+      "name": "fusion"
+     },
+     "link": null
+    },
+    {
+     "name": "detail_sharpness",
+     "type": "FLOAT",
+     "widget": {
+      "name": "detail_sharpness"
+     },
+     "link": null
+    },
+    {
+     "name": "exposure_match",
+     "type": "BOOLEAN",
+     "widget": {
+      "name": "exposure_match"
+     },
+     "link": null
+    },
+    {
+     "name": "hole_fill",
+     "type": "COMBO",
+     "widget": {
+      "name": "hole_fill"
+     },
+     "link": null
+    },
+    {
+     "name": "views_2_weight",
+     "type": "FLOAT",
+     "widget": {
+      "name": "views_2_weight"
+     },
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "name": "trimesh",
+     "type": "TRIMESH",
+     "links": []
+    },
+    {
+     "name": "albedo_texture",
+     "type": "IMAGE",
+     "links": [
+      28
+     ]
+    },
+    {
+     "name": "preview",
+     "type": "IMAGE",
+     "links": [
+      27
+     ]
+    },
+    {
+     "name": "glb_path",
+     "type": "STRING",
+     "links": []
+    },
+    {
+     "name": "model_3d",
+     "type": "FILE_3D_GLB",
+     "links": []
+    },
+    {
+     "name": "bake_state",
+     "type": "QWENTEX_BAKE",
+     "links": []
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "D3DQwenTexBake"
+   },
+   "widgets_values": [
+    2048,
+    "3D/qwentex/mesh",
+    4.0,
+    0.5,
+    6.0,
+    "no top/bottom",
+    "two_band",
+    32.0,
+    true,
+    "mesh",
+    0.6
+   ],
+   "color": "#233",
+   "bgcolor": "#355"
+  },
+  {
+   "id": 16,
+   "type": "PreviewImage",
+   "pos": [
+    420,
+    640
+   ],
+   "size": [
+    380,
+    300
+   ],
+   "flags": {},
+   "order": 15,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "link": 25
+    }
+   ],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "PreviewImage"
+   },
+   "widgets_values": [],
+   "title": "Atlas de controle"
+  },
+  {
+   "id": 17,
+   "type": "PreviewImage",
+   "pos": [
+    1260,
+    620
+   ],
+   "size": [
+    340,
+    300
+   ],
+   "flags": {},
+   "order": 16,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "link": 26
+    }
+   ],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "PreviewImage"
+   },
+   "widgets_values": [],
+   "title": "Atlas gerado (6 vistas)"
+  },
+  {
+   "id": 18,
+   "type": "PreviewImage",
+   "pos": [
+    2000,
+    0
+   ],
+   "size": [
+    500,
+    300
+   ],
+   "flags": {},
+   "order": 17,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "link": 27
+    }
+   ],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "PreviewImage"
+   },
+   "widgets_values": [],
+   "title": "Preview da textura"
+  },
+  {
+   "id": 19,
+   "type": "PreviewImage",
+   "pos": [
+    2000,
+    340
+   ],
+   "size": [
+    500,
+    500
+   ],
+   "flags": {},
+   "order": 18,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "link": 28
+    }
+   ],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "PreviewImage"
+   },
+   "widgets_values": [],
+   "title": "Textura albedo"
+  }
+ ],
+ "links": [
+  [
+   1,
+   1,
+   0,
+   3,
+   1,
+   "TRIMESH"
+  ],
+  [
+   2,
+   2,
+   0,
+   3,
+   0,
+   "IMAGE"
+  ],
+  [
+   3,
+   2,
+   1,
+   3,
+   2,
+   "MASK"
+  ],
+  [
+   4,
+   3,
+   0,
+   4,
+   0,
+   "QWENTEX_PREP"
+  ],
+  [
+   5,
+   5,
+   0,
+   9,
+   0,
+   "MODEL"
+  ],
+  [
+   6,
+   8,
+   0,
+   9,
+   1,
+   "MODEL_PATCH"
+  ],
+  [
+   7,
+   7,
+   0,
+   9,
+   2,
+   "VAE"
+  ],
+  [
+   8,
+   4,
+   0,
+   9,
+   3,
+   "IMAGE"
+  ],
+  [
+   9,
+   6,
+   0,
+   10,
+   0,
+   "CLIP"
+  ],
+  [
+   10,
+   7,
+   0,
+   10,
+   2,
+   "VAE"
+  ],
+  [
+   11,
+   4,
+   2,
+   10,
+   1,
+   "IMAGE"
+  ],
+  [
+   12,
+   4,
+   3,
+   10,
+   3,
+   "STRING"
+  ],
+  [
+   13,
+   4,
+   4,
+   11,
+   0,
+   "INT"
+  ],
+  [
+   14,
+   4,
+   5,
+   11,
+   1,
+   "INT"
+  ],
+  [
+   15,
+   9,
+   0,
+   12,
+   0,
+   "MODEL"
+  ],
+  [
+   16,
+   10,
+   0,
+   12,
+   1,
+   "CONDITIONING"
+  ],
+  [
+   17,
+   10,
+   1,
+   12,
+   2,
+   "CONDITIONING"
+  ],
+  [
+   18,
+   11,
+   0,
+   12,
+   3,
+   "LATENT"
+  ],
+  [
+   19,
+   12,
+   0,
+   13,
+   0,
+   "LATENT"
+  ],
+  [
+   20,
+   7,
+   0,
+   13,
+   1,
+   "VAE"
+  ],
+  [
+   21,
+   3,
+   0,
+   14,
+   0,
+   "QWENTEX_PREP"
+  ],
+  [
+   22,
+   13,
+   0,
+   14,
+   1,
+   "IMAGE"
+  ],
+  [
+   23,
+   3,
+   0,
+   15,
+   0,
+   "QWENTEX_PREP"
+  ],
+  [
+   24,
+   14,
+   0,
+   15,
+   1,
+   "IMAGE"
+  ],
+  [
+   25,
+   4,
+   0,
+   16,
+   0,
+   "IMAGE"
+  ],
+  [
+   26,
+   14,
+   2,
+   17,
+   0,
+   "IMAGE"
+  ],
+  [
+   27,
+   15,
+   2,
+   18,
+   0,
+   "IMAGE"
+  ],
+  [
+   28,
+   15,
+   1,
+   19,
+   0,
+   "IMAGE"
+  ]
+ ],
+ "groups": [
+  {
+   "id": 1,
+   "title": "Qwen Image 2.1 + Fun ControlNet",
+   "bounding": [
+    820,
+    -320,
+    420,
+    1260
+   ],
+   "color": "#a1309b",
+   "font_size": 24,
+   "flags": {}
+  },
+  {
+   "id": 2,
+   "title": "QwenTex (malha -> vistas -> GLB)",
+   "bounding": [
+    400,
+    -60,
+    420,
+    1020
+   ],
+   "color": "#3f789e",
+   "font_size": 24,
+   "flags": {}
+  }
+ ],
+ "config": {},
+ "extra": {
+  "ds": {
+   "scale": 0.6,
+   "offset": [
+    100,
+    400
+   ]
+  }
+ },
+ "version": 0.4
+}
