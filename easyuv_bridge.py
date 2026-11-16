@@ -19,7 +19,7 @@ import numpy as np
 import torch
 
 try:
-    from .character_uv import (body_part_labels, body_part_seams, character_uv, PART_NAMES)
+    from .character_uv import (body_part_labels, body_part_seams as _part_seams, character_uv, PART_NAMES)
     from .lowpoly_tools import _batch_items, _progress_text, repack_uvs, UP_AXES
 except ImportError:  # loaded outside the package (tests)
     import importlib.util as _ilu
@@ -38,7 +38,7 @@ except ImportError:  # loaded outside the package (tests)
 
     _lp = _load("lowpoly_tools")
     _cu = _load("character_uv")
-    body_part_labels, body_part_seams, character_uv, PART_NAMES = (
+    body_part_labels, _part_seams, character_uv, PART_NAMES = (
         _cu.body_part_labels, _cu.body_part_seams, _cu.character_uv, _cu.PART_NAMES)
     _batch_items, _progress_text, repack_uvs, UP_AXES = (
         _lp._batch_items, _lp._progress_text, _lp.repack_uvs, _lp.UP_AXES)
@@ -221,7 +221,7 @@ class D3DEasyUVUnwrap:
             text = f"EasyUV not found, used Character UV: {info['islands']} islands, {info['flipped']} flipped"
         else:
             wv, wf, adj, body, lab, full = body_part_labels(v, f, up_axis, head_size, hands_size, front_axis)
-            seams = body_part_seams(wf, adj, full) if body_part_seams else np.zeros((0, 2), np.int64)
+            seams = _part_seams(wf, adj, full) if body_part_seams else np.zeros((0, 2), np.int64)
             p = _Params(angle_deg=seam_angle, max_distortion=max_distortion, relax_iterations=relax_iterations,
                         margin=float(padding) / float(resolution), density_mode=0, texture_size=resolution,
                         target_density=0.0, quality=quality, rotate_islands=1, priority=priority,
