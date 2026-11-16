@@ -9,4 +9,4 @@ o-voxel/*
 .vs/*
 nvdiffrast/*
 nvdiffrec/*
-fp8_models/*
+fp8_models/*bin/

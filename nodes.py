@@ -9065,3 +9065,11 @@ try:
     NODE_DISPLAY_NAME_MAPPINGS.update(_CUV_NAMES)
 except Exception as _e:
     print(f"comfyui-d-3D: character UV nodes not loaded: {_e}")
+
+# EasyUV bridge (EasyUV is installed separately; falls back to Character UV).
+try:
+    from .easyuv_bridge import NODE_CLASS_MAPPINGS as _EUV_NODES, NODE_DISPLAY_NAME_MAPPINGS as _EUV_NAMES
+    NODE_CLASS_MAPPINGS.update(_EUV_NODES)
+    NODE_DISPLAY_NAME_MAPPINGS.update(_EUV_NAMES)
+except Exception as _e:
+    print(f"comfyui-d-3D: EasyUV node not loaded: {_e}")
