@@ -9057,3 +9057,11 @@ try:
     NODE_DISPLAY_NAME_MAPPINGS.update(_LOWPOLY_NAMES)
 except Exception as _e:
     print(f"comfyui-d-3D: low-poly tools not loaded: {_e}")
+
+# Character UV by body part, texture padding and top-of-head albedo blend.
+try:
+    from .character_uv import NODE_CLASS_MAPPINGS as _CUV_NODES, NODE_DISPLAY_NAME_MAPPINGS as _CUV_NAMES
+    NODE_CLASS_MAPPINGS.update(_CUV_NODES)
+    NODE_DISPLAY_NAME_MAPPINGS.update(_CUV_NAMES)
+except Exception as _e:
+    print(f"comfyui-d-3D: character UV nodes not loaded: {_e}")

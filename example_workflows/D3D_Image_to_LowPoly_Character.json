@@ -1,8 +1,8 @@
 {
  "id": "6c0b6f0e-d3d0-4c1a-9a51-0d3d0c4a2a11",
  "revision": 0,
- "last_node_id": 356,
- "last_link_id": 1350,
+ "last_node_id": 362,
+ "last_link_id": 1367,
  "nodes": [
   {
    "id": 91,
@@ -376,7 +376,7 @@
     {
      "name": "mesh",
      "type": "MESH",
-     "link": 1344
+     "link": 1360
     }
    ],
    "outputs": [
@@ -521,12 +521,12 @@
     {
      "name": "mesh",
      "type": "MESH",
-     "link": 1341
+     "link": 1357
     },
     {
      "name": "base_color",
      "type": "IMAGE",
-     "link": 1336
+     "link": 1365
     },
     {
      "name": "metallic",
@@ -558,7 +558,7 @@
      "name": "mesh",
      "type": "MESH",
      "links": [
-      1130
+      1366
      ]
     }
    ],
@@ -586,7 +586,7 @@
     {
      "name": "mesh",
      "type": "MESH",
-     "link": 1340
+     "link": 1356
     },
     {
      "name": "voxel_colors",
@@ -613,7 +613,8 @@
      "name": "base_color",
      "type": "IMAGE",
      "links": [
-      923
+      923,
+      1364
      ]
     },
     {
@@ -665,7 +666,8 @@
      "links": [
       1185,
       1186,
-      1346
+      1346,
+      1352
      ]
     }
    ],
@@ -711,7 +713,8 @@
      "type": "MESH",
      "links": [
       1061,
-      1199
+      1199,
+      1351
      ]
     }
    ],
@@ -1694,7 +1697,7 @@
     {
      "name": "low_poly",
      "type": "MESH",
-     "link": 1343
+     "link": 1359
     },
     {
      "name": "high_poly",
@@ -1749,7 +1752,7 @@
     {
      "name": "low_poly",
      "type": "MESH",
-     "link": 1342
+     "link": 1358
     },
     {
      "name": "high_poly",
@@ -2587,7 +2590,7 @@
     {
      "name": "mesh",
      "type": "MESH",
-     "link": 1130
+     "link": 1367
     }
    ],
    "outputs": [
@@ -4621,7 +4624,7 @@
     {
      "name": "mesh",
      "type": "MESH",
-     "link": 1345
+     "link": 1361
     },
     {
      "name": "keep_textures",
@@ -4727,7 +4730,7 @@
      "name": "output",
      "type": "IMAGE",
      "links": [
-      1336
+      1363
      ]
     }
    ],
@@ -4873,12 +4876,7 @@
      "name": "mesh",
      "type": "MESH",
      "links": [
-      1340,
-      1341,
-      1342,
-      1343,
-      1344,
-      1345
+      1353
      ]
     },
     {
@@ -5016,6 +5014,283 @@
     "auto"
    ],
    "title": "Quad Remesh personagem (~6k quads, cabeca/maos mais densas)"
+  },
+  {
+   "id": 357,
+   "type": "D3DCharacterUV",
+   "pos": [
+    1590,
+    790
+   ],
+   "size": [
+    280,
+    330
+   ],
+   "flags": {},
+   "order": 49,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "mesh",
+     "type": "MESH",
+     "link": 1351
+    },
+    {
+     "name": "resolution",
+     "type": "INT",
+     "widget": {
+      "name": "resolution"
+     },
+     "link": 1352
+    }
+   ],
+   "outputs": [
+    {
+     "name": "mesh",
+     "type": "MESH",
+     "links": [
+      1354
+     ]
+    },
+    {
+     "name": "info",
+     "type": "STRING",
+     "links": []
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "D3DCharacterUV",
+    "cnr_id": "comfyui-d-3d"
+   },
+   "widgets_values": [
+    2048,
+    8,
+    1.4,
+    1.3,
+    0.2,
+    0.1,
+    "+Z",
+    0.6,
+    "auto"
+   ],
+   "title": "UV por partes do corpo"
+  },
+  {
+   "id": 358,
+   "type": "ComfySwitchNode",
+   "pos": [
+    1590,
+    1150
+   ],
+   "size": [
+    270,
+    110
+   ],
+   "flags": {},
+   "order": 0,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "on_false",
+     "type": "MESH",
+     "link": 1353,
+     "shape": 7
+    },
+    {
+     "name": "on_true",
+     "type": "MESH",
+     "link": 1354,
+     "shape": 7
+    },
+    {
+     "name": "switch",
+     "type": "BOOLEAN",
+     "link": 1355,
+     "widget": {
+      "name": "switch"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "output",
+     "type": "MESH",
+     "links": [
+      1356,
+      1357,
+      1358,
+      1359,
+      1360,
+      1361,
+      1362
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "ComfySwitchNode",
+    "cnr_id": "comfy-core"
+   },
+   "widgets_values": [
+    true
+   ],
+   "title": "Switch: UV"
+  },
+  {
+   "id": 359,
+   "type": "PrimitiveBoolean",
+   "pos": [
+    1590,
+    1290
+   ],
+   "size": [
+    300,
+    70
+   ],
+   "flags": {},
+   "order": 0,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [
+    {
+     "name": "BOOLEAN",
+     "type": "BOOLEAN",
+     "links": [
+      1355
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "PrimitiveBoolean",
+    "cnr_id": "comfy-core"
+   },
+   "widgets_values": [
+    true
+   ],
+   "title": "UV por partes do corpo (true) / UnwrapMesh (false)",
+   "color": "#322",
+   "bgcolor": "#533"
+  },
+  {
+   "id": 360,
+   "type": "D3DAlbedoTopBlend",
+   "pos": [
+    3060,
+    2260
+   ],
+   "size": [
+    300,
+    250
+   ],
+   "flags": {},
+   "order": 60,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "mesh",
+     "type": "MESH",
+     "link": 1362
+    },
+    {
+     "name": "albedo",
+     "type": "IMAGE",
+     "link": 1363
+    },
+    {
+     "name": "top_albedo",
+     "type": "IMAGE",
+     "link": 1364
+    }
+   ],
+   "outputs": [
+    {
+     "name": "albedo",
+     "type": "IMAGE",
+     "links": [
+      1365
+     ]
+    },
+    {
+     "name": "mask",
+     "type": "MASK",
+     "links": []
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "D3DAlbedoTopBlend",
+    "cnr_id": "comfyui-d-3d"
+   },
+   "widgets_values": [
+    50.0,
+    20.0,
+    true,
+    0.2,
+    "auto"
+   ],
+   "title": "Topo da cabeca: albedo do TRELLIS"
+  },
+  {
+   "id": 361,
+   "type": "D3DTexturePadding",
+   "pos": [
+    3410,
+    860
+   ],
+   "size": [
+    270,
+    110
+   ],
+   "flags": {},
+   "order": 62,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "mesh",
+     "type": "MESH",
+     "link": 1366
+    }
+   ],
+   "outputs": [
+    {
+     "name": "mesh",
+     "type": "MESH",
+     "links": [
+      1367
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "D3DTexturePadding",
+    "cnr_id": "comfyui-d-3d"
+   },
+   "widgets_values": [
+    16,
+    1
+   ],
+   "title": "Padding das texturas (bordas das ilhas)"
+  },
+  {
+   "id": 362,
+   "type": "MarkdownNote",
+   "pos": [
+    1590,
+    1430
+   ],
+   "size": [
+    560,
+    300
+   ],
+   "flags": {},
+   "order": 0,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [],
+   "properties": {},
+   "title": "Leia: UV",
+   "color": "#432",
+   "bgcolor": "#653",
+   "widgets_values": [
+    "### UV por partes do corpo\n\n`true` (padrao): **UV por partes do corpo**. Costuras no pescoco, ombros, punhos, cintura e quadril; a cabeca e cortada atras das orelhas (o rosto fica numa ilha so); bracos e pernas cortados no comprimento. ~20-30 ilhas em vez de ~350 do UnwrapMesh. Ja inclui o ganho de texel na cabeca.\n\n`false`: **UnwrapMesh** nativo + UV Texel Boost (como antes).\n\n- `front_axis`: para onde o personagem olha (+Z no TRELLIS/Pixal3D). Se o rosto sair cortado ao meio, troque para -Z.\n- `max_distortion`: menor = mais ilhas e menos esticamento.\n\n**Topo da cabeca**: as 6 vistas do QwenTex quase nao veem o topo; ali entra o albedo do TRELLIS, com a cor casada ao QwenTex.\n\n**Padding**: estende cada ilha 16 texels para fora, para as costuras nao mostrarem linhas escuras no motor de jogo."
+   ]
   }
  ],
  "links": [
@@ -5378,14 +5653,6 @@
    252,
    1,
    "VOXEL"
-  ],
-  [
-   1130,
-   210,
-   0,
-   260,
-   0,
-   "MESH"
   ],
   [
    1133,
@@ -6020,14 +6287,6 @@
    "BOOLEAN"
   ],
   [
-   1336,
-   349,
-   0,
-   210,
-   1,
-   "IMAGE"
-  ],
-  [
    1337,
    328,
    0,
@@ -6048,54 +6307,6 @@
    196,
    0,
    353,
-   0,
-   "MESH"
-  ],
-  [
-   1340,
-   353,
-   0,
-   147,
-   0,
-   "MESH"
-  ],
-  [
-   1341,
-   353,
-   0,
-   210,
-   0,
-   "MESH"
-  ],
-  [
-   1342,
-   353,
-   0,
-   224,
-   0,
-   "MESH"
-  ],
-  [
-   1343,
-   353,
-   0,
-   233,
-   0,
-   "MESH"
-  ],
-  [
-   1344,
-   353,
-   0,
-   261,
-   0,
-   "MESH"
-  ],
-  [
-   1345,
-   353,
-   0,
-   347,
    0,
    "MESH"
   ],
@@ -6137,6 +6348,142 @@
    0,
    328,
    1,
+   "MESH"
+  ],
+  [
+   1351,
+   238,
+   0,
+   357,
+   0,
+   "MESH"
+  ],
+  [
+   1352,
+   288,
+   0,
+   357,
+   1,
+   "INT"
+  ],
+  [
+   1353,
+   353,
+   0,
+   358,
+   0,
+   "MESH"
+  ],
+  [
+   1354,
+   357,
+   0,
+   358,
+   1,
+   "MESH"
+  ],
+  [
+   1355,
+   359,
+   0,
+   358,
+   2,
+   "BOOLEAN"
+  ],
+  [
+   1356,
+   358,
+   0,
+   147,
+   0,
+   "MESH"
+  ],
+  [
+   1357,
+   358,
+   0,
+   210,
+   0,
+   "MESH"
+  ],
+  [
+   1358,
+   358,
+   0,
+   224,
+   0,
+   "MESH"
+  ],
+  [
+   1359,
+   358,
+   0,
+   233,
+   0,
+   "MESH"
+  ],
+  [
+   1360,
+   358,
+   0,
+   261,
+   0,
+   "MESH"
+  ],
+  [
+   1361,
+   358,
+   0,
+   347,
+   0,
+   "MESH"
+  ],
+  [
+   1362,
+   358,
+   0,
+   360,
+   0,
+   "MESH"
+  ],
+  [
+   1363,
+   349,
+   0,
+   360,
+   1,
+   "IMAGE"
+  ],
+  [
+   1364,
+   147,
+   0,
+   360,
+   2,
+   "IMAGE"
+  ],
+  [
+   1365,
+   360,
+   0,
+   210,
+   1,
+   "IMAGE"
+  ],
+  [
+   1366,
+   210,
+   0,
+   361,
+   0,
+   "MESH"
+  ],
+  [
+   1367,
+   361,
+   0,
+   260,
+   0,
    "MESH"
   ]
  ],
