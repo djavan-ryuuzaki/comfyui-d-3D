@@ -172,6 +172,134 @@ def lscm(v, f):
     return out, flipped, distortion
 
 
+def arap(v, f, uv0, iters=12):
+    """As-rigid-as-possible refinement of a disk parameterisation (Liu et al. 2008, local/global).
+
+    LSCM is conformal, so narrow parts (hair strands, fingers, the far side of a long seam) shrink
+    exponentially; ARAP pulls every triangle back toward its true size and shape."""
+    from scipy.sparse import coo_matrix
+    from scipy.sparse.linalg import splu
+
+    used, lf = np.unique(f, return_inverse=True)
+    lf = lf.reshape(-1, 3)
+    p = v[used].astype(np.float64)
+    u = uv0[used].astype(np.float64).copy()
+    nv, nf = len(p), len(lf)
+    p0, p1, p2 = p[lf[:, 0]], p[lf[:, 1]], p[lf[:, 2]]
+    e1 = p1 - p0
+    n = np.cross(e1, p2 - p0)
+    area2 = np.linalg.norm(n, axis=1)
+    x_ax = e1 / np.maximum(np.linalg.norm(e1, axis=1, keepdims=True), 1e-20)
+    y_ax = np.cross(n / np.maximum(area2[:, None], 1e-20), x_ax)
+    q = np.zeros((nf, 3, 2))
+    q[:, 1, 0] = np.linalg.norm(e1, axis=1)
+    q[:, 2, 0] = np.einsum("ij,ij->i", p2 - p0, x_ax)
+    q[:, 2, 1] = np.einsum("ij,ij->i", p2 - p0, y_ax)
+    # cotangent of the angle opposite each edge (i -> j), edge k = (k, k+1), opposite corner k+2
+    pairs = [(0, 1, 2), (1, 2, 0), (2, 0, 1)]
+    cot = np.zeros((nf, 3))
+    for k, (i, j, o) in enumerate(pairs):
+        a = q[:, i] - q[:, o]
+        b = q[:, j] - q[:, o]
+        cr = np.abs(a[:, 0] * b[:, 1] - a[:, 1] * b[:, 0])
+        cot[:, k] = (a * b).sum(1) / np.maximum(cr, 1e-20)
+    scale = max(float(np.median(np.abs(cot))), 1e-6)
+    cot = np.clip(cot, 1e-3 * scale, 1e3 * scale)
+    rows, cols, vals = [], [], []
+    for k, (i, j, _) in enumerate(pairs):
+        vi, vj, w = lf[:, i], lf[:, j], cot[:, k]
+        rows += [vi, vj, vi, vj]
+        cols += [vi, vj, vj, vi]
+        vals += [w, w, -w, -w]
+    L = coo_matrix((np.concatenate(vals), (np.concatenate(rows), np.concatenate(cols))), shape=(nv, nv)).tocsc()
+    pin = 0
+    keep = np.arange(nv) != pin
+    try:
+        solver = splu(L[keep][:, keep].tocsc())
+    except Exception:
+        return uv0
+    Lp = L[keep][:, [pin]]
+    for _ in range(iters):
+        # local: best rotation per triangle
+        S = np.zeros((nf, 2, 2))
+        for k, (i, j, _) in enumerate(pairs):
+            du = u[lf[:, i]] - u[lf[:, j]]
+            dx = q[:, i] - q[:, j]
+            S += cot[:, k, None, None] * du[:, :, None] * dx[:, None, :]
+        U, _, Vt = np.linalg.svd(S)
+        R = U @ Vt
+        bad = np.linalg.det(R) < 0
+        if bad.any():
+            U[bad, :, 1] *= -1
+            R[bad] = U[bad] @ Vt[bad]
+        # global: Poisson solve
+        b = np.zeros((nv, 2))
+        for k, (i, j, _) in enumerate(pairs):
+            dx = q[:, i] - q[:, j]
+            r = cot[:, k, None] * np.einsum("tab,tb->ta", R, dx)
+            np.add.at(b, lf[:, i], r)
+            np.add.at(b, lf[:, j], -r)
+        rhs = b[keep] - Lp @ u[[pin]]
+        new = np.zeros_like(u)
+        new[pin] = u[pin]
+        new[keep] = np.stack([solver.solve(rhs[:, 0]), solver.solve(rhs[:, 1])], 1)
+        if not np.all(np.isfinite(new)):
+            break
+        u = new
+    out = np.zeros((len(v), 2))
+    out[used] = u
+    return out
+
+
+def _self_overlap(v, f, uv):
+    """Area fraction of faces whose UV centroid falls inside another face of the same island."""
+    used, lf = np.unique(f, return_inverse=True)
+    lf = lf.reshape(-1, 3)
+    t = uv[used][lf]                      # [n,3,2]
+    p = v[used]
+    a3 = 0.5 * np.linalg.norm(np.cross(p[lf[:, 1]] - p[lf[:, 0]], p[lf[:, 2]] - p[lf[:, 0]]), axis=1)
+    c = t.mean(1)
+    lo, hi = t.min(1), t.max(1)
+    n = len(lf)
+    hit = np.zeros(n, bool)
+    a, b, cc = t[:, 0], t[:, 1], t[:, 2]
+    det = (b[:, 1] - cc[:, 1]) * (a[:, 0] - cc[:, 0]) + (cc[:, 0] - b[:, 0]) * (a[:, 1] - cc[:, 1])
+    okt = np.abs(det) > 1e-18
+    for s0 in range(0, n, 512):
+        q = c[s0:s0 + 512]                                   # [m,2]
+        inb = ((q[:, None, 0] >= lo[None, :, 0]) & (q[:, None, 0] <= hi[None, :, 0]) &
+               (q[:, None, 1] >= lo[None, :, 1]) & (q[:, None, 1] <= hi[None, :, 1]) & okt[None])
+        inb[np.arange(len(q)), np.arange(s0, s0 + len(q))] = False
+        qi, ti = np.nonzero(inb)
+        if len(qi) == 0:
+            continue
+        px, py = q[qi, 0], q[qi, 1]
+        l0 = ((b[ti, 1] - cc[ti, 1]) * (px - cc[ti, 0]) + (cc[ti, 0] - b[ti, 0]) * (py - cc[ti, 1])) / det[ti]
+        l1 = ((cc[ti, 1] - a[ti, 1]) * (px - cc[ti, 0]) + (a[ti, 0] - cc[ti, 0]) * (py - cc[ti, 1])) / det[ti]
+        l2 = 1.0 - l0 - l1
+        inside = (l0 > 1e-9) & (l1 > 1e-9) & (l2 > 1e-9)
+        hit[s0 + qi[inside]] = True
+    return float(a3[hit].sum() / max(a3.sum(), 1e-30))
+
+
+def _uv_quality(v, f, uv):
+    """(flipped fraction by area, area distortion: weighted std of log(uv area / 3D area))."""
+    used, lf = np.unique(f, return_inverse=True)
+    lf = lf.reshape(-1, 3)
+    p = v[used]
+    a3 = 0.5 * np.linalg.norm(np.cross(p[lf[:, 1]] - p[lf[:, 0]], p[lf[:, 2]] - p[lf[:, 0]]), axis=1)
+    sa = _signed_uv_area(uv[used], lf)
+    w = a3 / max(a3.sum(), 1e-30)
+    flipped = float(w[sa <= 0].sum())
+    ok = sa > 0
+    if not ok.any():
+        return 1.0, 1e9
+    r = np.log(np.maximum(sa, 1e-30) / np.maximum(a3, 1e-30))
+    wo = w * ok
+    mean = float((r * wo).sum() / wo.sum())
+    return flipped, float(np.sqrt((wo * (r - mean) ** 2).sum() / wo.sum()))
+
+
 def _signed_uv_area(uv, f):
     a, b, c = uv[f[:, 0]], uv[f[:, 1]], uv[f[:, 2]]
     return 0.5 * ((b[:, 0] - a[:, 0]) * (c[:, 1] - a[:, 1]) - (c[:, 0] - a[:, 0]) * (b[:, 1] - a[:, 1]))
@@ -263,7 +391,7 @@ class _Body:
         return faces[s >= 0], faces[s < 0]
 
 
-def _smooth_labels(lab, adj, nf, iters=4):
+def _smooth_labels(lab, adj, nf, iters=8):
     a, b = adj
     for _ in range(iters):
         votes = np.zeros((nf, int(lab.max()) + 1))
@@ -271,7 +399,7 @@ def _smooth_labels(lab, adj, nf, iters=4):
         np.add.at(votes, (b, lab[a]), 1)
         best = votes.argmax(1)
         strong = votes[np.arange(nf), best] >= 2
-        changed = strong & (votes[np.arange(nf), lab] == 0)
+        changed = strong & (best != lab) & (votes[np.arange(nf), lab] <= 1)
         if not changed.any():
             break
         lab = np.where(changed, best, lab)
@@ -286,28 +414,373 @@ def _split_by_plane(v, f, faces):
     return faces[s >= 0], faces[s < 0]
 
 
-def _flatten(v, f, faces, adj, n_faces, depth, max_distortion, out):
-    """LSCM a patch; split it in two along its long axis until each piece is a disk that flattens cleanly."""
+def _grow_disk(f, faces, adj_a, adj_b, n_faces):
+    """Grow one topological disk over a connected patch, face by face from its deepest face.
+
+    A face joins through the edge it shares with the grown region. Its third corner reuses the region's copy
+    of that vertex only when the face fills a notch (its second edge is also on the region boundary);
+    otherwise the corner gets a new copy, which cuts a seam along the face's other edges. The region stays a
+    disk at every step, so holes and handles (hair strands, ears, armpits) become seams instead of forcing the
+    patch to be chopped up. Returns (global vertex id per local vertex, local faces [k,3], face ids in order)."""
+    import heapq
+
+    inside = np.zeros(n_faces, bool)
+    inside[faces] = True
+    keep = inside[adj_a] & inside[adj_b]
+    a, b = adj_a[keep], adj_b[keep]
+    nbr = [[] for _ in range(n_faces)]
+    for x, y in zip(a.tolist(), b.tolist()):
+        nbr[x].append(y)
+        nbr[y].append(x)
+    # depth from the patch boundary: seed in the middle so the cuts end up near the edges
+    deg = np.zeros(n_faces, np.int64)
+    np.add.at(deg, a, 1)
+    np.add.at(deg, b, 1)
+    depth = {int(t): 0 for t in faces if deg[t] < 3}
+    frontier = list(depth)
+    if not frontier:
+        frontier = [int(faces[0])]
+        depth[frontier[0]] = 0
+    while frontier:
+        nxt = []
+        for t in frontier:
+            for u in nbr[t]:
+                if u not in depth:
+                    depth[u] = depth[t] + 1
+                    nxt.append(u)
+        frontier = nxt
+    seed = max(depth, key=depth.get)
+
+    gid = []          # global vertex of each local vertex
+    copies = {}       # global vertex -> local copies
+    lf = {}           # face -> local corners
+    ecount = {}       # local undirected edge -> faces using it
+
+    def new_copy(g):
+        gid.append(g)
+        copies.setdefault(g, []).append(len(gid) - 1)
+        return len(gid) - 1
+
+    def add(t, corners):
+        lf[t] = corners
+        for i in range(3):
+            e = (min(corners[i], corners[(i + 1) % 3]), max(corners[i], corners[(i + 1) % 3]))
+            ecount[e] = ecount.get(e, 0) + 1
+
+    add(seed, [new_copy(int(g)) for g in f[seed]])
+    heap, order, tick = [], [seed], 0
+    for u in nbr[seed]:
+        heapq.heappush(heap, (1, tick, u, seed))
+        tick += 1
+    dist = {seed: 0}
+    def try_add(t, via, d, force):
+        g = [int(x) for x in f[t]]
+        gv = [int(x) for x in f[via]]
+        lv = lf[via]
+        # the shared edge, with the region's local copies
+        loc = {gv[i]: lv[i] for i in range(3)}
+        if sum(x in loc for x in g) != 2:
+            return False
+        k = next(i for i in range(3) if g[i] not in loc)
+        ga, gb = g[(k + 1) % 3], g[(k + 2) % 3]
+        la, lb = loc[ga], loc[gb]
+        if ecount.get((min(la, lb), max(la, lb)), 0) != 1:
+            return False
+        gc = g[k]
+        lc = None
+        for c in copies.get(gc, []):
+            e1 = ecount.get((min(lb, c), max(lb, c)), 0)
+            e2 = ecount.get((min(c, la), max(c, la)), 0)
+            if (e1 == 1) != (e2 == 1) and e1 <= 1 and e2 <= 1:  # notch: exactly one more boundary edge
+                lc = c
+                break
+        if lc is None:
+            if copies.get(gc) and not force:
+                return None  # would cut a seam: wait, the region may reach it as a notch later
+            lc = new_copy(gc)
+        corners = [0, 0, 0]
+        corners[k], corners[(k + 1) % 3], corners[(k + 2) % 3] = lc, la, lb
+        add(t, corners)
+        order.append(t)
+        return True
+
+    deferred = {}
+    while True:
+        while heap:
+            d, _, t, via = heapq.heappop(heap)
+            if t in lf:
+                continue
+            r = try_add(t, via, d, False)
+            if r is None:
+                if t not in deferred or deferred[t][0] > d:
+                    deferred[t] = (d, via)
+                continue
+            if r:
+                deferred.pop(t, None)
+                for u in nbr[t]:
+                    if u not in lf:
+                        heapq.heappush(heap, (d + 1, tick, u, t))
+                        tick += 1
+        deferred = {t: dv for t, dv in deferred.items() if t not in lf}
+        if not deferred:
+            break
+        # nothing grows without a cut: cut at the nearest waiting face, then retry the others
+        t = min(deferred, key=lambda x: deferred[x][0])
+        d, via = deferred.pop(t)
+        if try_add(t, via, d, True):
+            for u in nbr[t]:
+                if u not in lf:
+                    heapq.heappush(heap, (d + 1, tick, u, t))
+                    tick += 1
+        for x, (dx, vx) in deferred.items():
+            heapq.heappush(heap, (dx, tick, x, vx))
+            tick += 1
+        deferred = {}
+    order = np.array(order, np.int64)
+    return np.array(gid, np.int64), np.array([lf[int(t)] for t in order], np.int64), order
+
+
+def _compact(gid, lfc):
+    used, inv = np.unique(lfc, return_inverse=True)
+    return gid[used], inv.reshape(-1, 3)
+
+
+def _param(v, gid, lfc, limit):
+    """LSCM + ARAP of a grown disk. Returns (uv over gid, ok)."""
+    vg = v[gid]
+    uv, _, _ = lscm(vg, lfc)
+    if uv is None:
+        return None, False
+    uv = arap(vg, lfc, uv)
+    flipped, dist = _uv_quality(vg, lfc, uv)
+    if flipped > 0.003 or dist > limit:
+        return uv, False
+    return uv, _self_overlap(vg, lfc, uv) <= 0.003
+
+
+def _flatten(v, f, faces, adj, n_faces, depth, max_distortion, out, hand=False):
+    """Grow a disk over each connected piece and flatten it (LSCM + ARAP).
+
+    If it folds over itself or stretches too much, keep the largest central part of the disk that flattens
+    cleanly (the disk is grown from the middle, so every prefix of the growth order is a disk too) and
+    flatten the rest again; only when that central part is small is the piece split in two."""
+    limit = max_distortion * (2.5 if hand else 1.0)
     for comp in _components(faces, adj[0], adj[1], n_faces):
         if len(comp) < 3:
-            out.append((comp, None))
+            out.append((comp, f[comp].reshape(-1).copy(), np.arange(3 * len(comp)).reshape(-1, 3), None))
             continue
-        sub = f[comp]
-        uv = flipped = dist = None
-        if _is_disk(sub):
-            uv, flipped, dist = lscm(v, sub)
-        good = uv is not None and flipped <= 0.002 and dist <= max_distortion
-        if good or depth >= 6 or len(comp) < 24:
-            if uv is None:
-                uv, flipped, dist = lscm(v, sub)
-            out.append((comp, uv))
+        gid, lfc, order = _grow_disk(f, comp, adj[0], adj[1], n_faces)
+        uv, good = _param(v, gid, lfc, limit)
+        if good or depth >= 6 or len(comp) < 48:
+            out.append((order, gid, lfc, uv))
+            continue
+        # largest clean prefix of the growth order (binary search)
+        lo, hi, best = max(len(comp) // 4, 24), len(comp) - 1, None
+        while lo <= hi:
+            mid = (lo + hi) // 2
+            g2, l2 = _compact(gid, lfc[:mid])
+            uv2, ok = _param(v, g2, l2, limit)
+            if ok:
+                best = (mid, g2, l2, uv2)
+                lo = mid + 1
+            else:
+                hi = mid - 1
+        if best is not None:
+            k, g2, l2, uv2 = best
+            out.append((order[:k], g2, l2, uv2))
+            _flatten(v, f, order[k:], adj, n_faces, depth + 1, max_distortion, out, hand)
             continue
         a, b = _split_by_plane(v, f, comp)
         if len(a) == 0 or len(b) == 0:
-            out.append((comp, uv))
+            out.append((order, gid, lfc, uv))
             continue
-        _flatten(v, f, a, adj, n_faces, depth + 1, max_distortion, out)
-        _flatten(v, f, b, adj, n_faces, depth + 1, max_distortion, out)
+        _flatten(v, f, a, adj, n_faces, depth + 1, max_distortion, out, hand)
+        _flatten(v, f, b, adj, n_faces, depth + 1, max_distortion, out, hand)
+
+
+def _absorb_small(v, f, adj, islands, n_faces, min_faces=20):
+    """Unfold the faces of tiny islands onto a neighbouring big island, one triangle at a time, wherever the
+    unfolded triangle lands on free space. Removes the slivers that a noisy mesh leaves after cutting."""
+    isl = [[np.asarray(o, np.int64).tolist(), np.asarray(g, np.int64).tolist(),
+            np.asarray(l, np.int64).tolist(), None if u is None else np.asarray(u, np.float64).tolist()]
+           for o, g, l, u in islands]
+    owner = -np.ones(n_faces, np.int64)
+    pos = -np.ones(n_faces, np.int64)
+    for k, (o, _, _, _) in enumerate(isl):
+        owner[o] = k
+        pos[o] = np.arange(len(o))
+    nbr = [[] for _ in range(n_faces)]
+    for x, y in zip(adj[0].tolist(), adj[1].tolist()):
+        nbr[x].append(y)
+        nbr[y].append(x)
+    ecount = {}
+
+    def edges_of(k):
+        if k not in ecount:
+            d = {}
+            for c in isl[k][2]:
+                for i in range(3):
+                    e = (min(c[i], c[(i + 1) % 3]), max(c[i], c[(i + 1) % 3]))
+                    d[e] = d.get(e, 0) + 1
+            ecount[k] = d
+        return ecount[k]
+
+    def free(k, tri):
+        u = np.asarray(isl[k][3])
+        t = u[np.asarray(isl[k][2])]
+        c = tri.mean(0)
+        d1 = tri[1] - tri[0]
+        d2 = tri[2] - tri[0]
+        if d1[0] * d2[1] - d1[1] * d2[0] <= 0:
+            return False
+        # new centroid inside an existing triangle, or an existing centroid inside the new one
+        def inside(pts, tr):
+            a, b, cc = tr[..., 0, :], tr[..., 1, :], tr[..., 2, :]
+            det = (b[..., 1] - cc[..., 1]) * (a[..., 0] - cc[..., 0]) + (cc[..., 0] - b[..., 0]) * (a[..., 1] - cc[..., 1])
+            det = np.where(np.abs(det) < 1e-30, 1e-30, det)
+            l0 = ((b[..., 1] - cc[..., 1]) * (pts[..., 0] - cc[..., 0]) + (cc[..., 0] - b[..., 0]) * (pts[..., 1] - cc[..., 1])) / det
+            l1 = ((cc[..., 1] - a[..., 1]) * (pts[..., 0] - cc[..., 0]) + (a[..., 0] - cc[..., 0]) * (pts[..., 1] - cc[..., 1])) / det
+            return (l0 > 1e-9) & (l1 > 1e-9) & (1 - l0 - l1 > 1e-9)
+        if inside(np.broadcast_to(c, (len(t), 2)), t).any():
+            return False
+        if inside(t.mean(1), np.broadcast_to(tri, (len(t), 3, 2))).any():
+            return False
+        # also the edge midpoints of the new triangle
+        mids = (tri + np.roll(tri, -1, 0)) / 2
+        for m in mids:
+            if inside(np.broadcast_to(m, (len(t), 2)), t).any():
+                return False
+        return True
+
+    for _ in range(4):
+        moved = False
+        small = [k for k, (o, _, _, u) in enumerate(isl) if 0 < len(o) < min_faces]
+        for k in small:
+            queue = list(isl[k][0])
+            stuck = 0
+            while queue and stuck < len(queue):
+                t = queue.pop(0)
+                placed = False
+                for nb in nbr[t]:
+                    j = owner[nb]
+                    if j == k or j < 0 or len(isl[j][0]) < min_faces or isl[j][3] is None:
+                        continue
+                    gt = [int(x) for x in f[t]]
+                    gn = [int(x) for x in f[nb]]
+                    cn = isl[j][2][pos[nb]]
+                    loc = {gn[i]: cn[i] for i in range(3)}
+                    if sum(x in loc for x in gt) != 2:
+                        continue
+                    kk = next(i for i in range(3) if gt[i] not in loc)
+                    ga, gb = gt[(kk + 1) % 3], gt[(kk + 2) % 3]
+                    la, lb = loc[ga], loc[gb]
+                    if edges_of(j).get((min(la, lb), max(la, lb)), 0) != 1:
+                        continue
+                    uvj = isl[j][3]
+                    ua, ub = np.asarray(uvj[la]), np.asarray(uvj[lb])
+                    pa, pb, pc = v[ga], v[gb], v[gt[kk]]
+                    e3 = pb - pa
+                    L3 = float(np.linalg.norm(e3))
+                    L2 = float(np.linalg.norm(ub - ua))
+                    if L3 < 1e-12 or L2 < 1e-12:
+                        continue
+                    sp = float(np.dot(pc - pa, e3)) / (L3 * L3)
+                    h = float(np.linalg.norm(np.cross(e3, pc - pa))) / L3 * (L2 / L3)
+                    eu = (ub - ua) / L2
+                    perp = np.array([-eu[1], eu[0]])
+                    uc = ua + sp * (ub - ua) + h * perp
+                    tri = np.zeros((3, 2))
+                    tri[kk], tri[(kk + 1) % 3], tri[(kk + 2) % 3] = uc, ua, ub
+                    if not free(j, tri):
+                        continue
+                    # accept: new copy of the third vertex
+                    isl[j][1].append(gt[kk])
+                    uvj.append(uc.tolist())
+                    lc = len(isl[j][1]) - 1
+                    corners = [0, 0, 0]
+                    corners[kk], corners[(kk + 1) % 3], corners[(kk + 2) % 3] = lc, la, lb
+                    isl[j][2].append(corners)
+                    isl[j][0].append(t)
+                    d = edges_of(j)
+                    for i in range(3):
+                        e = (min(corners[i], corners[(i + 1) % 3]), max(corners[i], corners[(i + 1) % 3]))
+                        d[e] = d.get(e, 0) + 1
+                    owner[t] = j
+                    pos[t] = len(isl[j][0]) - 1
+                    placed = True
+                    moved = True
+                    break
+                if placed:
+                    stuck = 0
+                else:
+                    queue.append(t)
+                    stuck += 1
+            # whatever is left stays a (smaller) island of its own
+            rest = [t for t in isl[k][0] if owner[t] == k]
+            if len(rest) != len(isl[k][0]):
+                if rest:
+                    sub = np.asarray(rest, np.int64)
+                    gid = f[sub].reshape(-1)
+                    isl[k] = [rest, gid.tolist(), np.arange(3 * len(rest)).reshape(-1, 3).tolist(), None]
+                    pos[sub] = np.arange(len(rest))
+                else:
+                    isl[k] = [[], [], [], None]
+                ecount.pop(k, None)
+        if not moved:
+            break
+    out = []
+    for o, g, l, u in isl:
+        if not o:
+            continue
+        out.append((np.asarray(o, np.int64), np.asarray(g, np.int64), np.asarray(l, np.int64).reshape(-1, 3),
+                    None if u is None else np.asarray(u, np.float64)))
+    return out
+
+
+def _merge_fragments(lab, adj, nf, min_keep=0):
+    """Every label keeps only its largest connected piece; the other pieces join the label they touch most.
+    Removes the specks and enclosed islets that would make holes in a body-part patch."""
+    from scipy.sparse import coo_matrix
+    from scipy.sparse.csgraph import connected_components
+
+    a, b = adj
+    for _ in range(6):
+        same = lab[a] == lab[b]
+        g = coo_matrix((np.ones(int(same.sum()), np.int8), (a[same], b[same])), shape=(nf, nf))
+        n, comp = connected_components(g, directed=False)
+        size = np.bincount(comp, minlength=n)
+        clab = np.zeros(n, np.int64)
+        clab[comp] = lab
+        best = np.zeros(int(lab.max()) + 1, np.int64)
+        bestsize = np.zeros(int(lab.max()) + 1, np.int64)
+        for c in np.argsort(-size):
+            if bestsize[clab[c]] == 0:
+                bestsize[clab[c]] = size[c]
+                best[clab[c]] = c
+        minor = np.ones(n, bool)
+        minor[best[bestsize > 0]] = False
+        if not minor.any():
+            break
+        # most common neighbouring label of each minor piece
+        cross = comp[a] != comp[b]
+        ca, cb = comp[a][cross], comp[b][cross]
+        la, lb = lab[a][cross], lab[b][cross]
+        votes = {}
+        for x, y in ((ca, lb), (cb, la)):
+            m = minor[x]
+            for c, l in zip(x[m].tolist(), y[m].tolist()):
+                votes.setdefault(c, {}).setdefault(l, 0)
+                votes[c][l] += 1
+        changed = False
+        # small pieces first, so an islet merges into what surrounds it
+        for c in sorted(votes, key=lambda c: size[c]):
+            tgt = max(votes[c], key=votes[c].get)
+            if tgt != clab[c]:
+                lab[comp == c] = tgt
+                changed = True
+        if not changed:
+            break
+    return lab
 
 
 def character_uv(v, f, resolution=2048, padding=8, head_texel_scale=1.4, hands_texel_scale=1.3,
@@ -321,38 +794,39 @@ def character_uv(v, f, resolution=2048, padding=8, head_texel_scale=1.4, hands_t
     body = _Body(v, f, up_axis, head_size, hands_size, front_axis)
     lab = body.labels(v, f, adj)
 
-    patches = []
+    # final labels: part x side (A/B), then each label is one connected piece without islets
+    full = np.full(nf, -1, np.int64)
     for part in range(len(PART_NAMES)):
         faces = np.nonzero(lab == part)[0]
         if len(faces) == 0:
             continue
-        for a in body.split_front_back(v, f, faces, part):
-            if len(a):
-                patches.append(a)
+        for side, a in enumerate(body.split_front_back(v, f, faces, part)):
+            full[a] = 2 * part + side
+    # straighten the cut lines (no single-triangle teeth), then one connected piece per label
+    full = _merge_fragments(_smooth_labels(full, adj, nf, iters=12), adj, nf)
 
     islands = []
-    for faces in patches:
-        _flatten(v, f, faces, adj, nf, 0, max_distortion, islands)
+    for key in np.unique(full):
+        faces = np.nonzero(full == key)[0]
+        part = int(key) // 2
+        _flatten(v, f, faces, adj, nf, 0, max_distortion, islands, hand=PART_NAMES[part].startswith("hand"))
+    islands = _absorb_small(v, f, adj, islands, nf)
 
     # split vertices per island
     new_v, new_f, new_uv = [], np.zeros_like(f), []
     base = 0
     fallback = 0
-    for faces, uv in islands:
-        used, lf = np.unique(f[faces], return_inverse=True)
-        lf = lf.reshape(-1, 3)
+    for faces, gid, lfc, uv in islands:
         if uv is None:  # degenerate speck: a flat projection is good enough
             fallback += 1
-            pts = v[used]
+            pts = v[gid]
             c = pts - pts.mean(0)
             _, _, vt = np.linalg.svd(c, full_matrices=False)
-            local_uv = c @ vt[:2].T
-        else:
-            local_uv = uv[used]
-        new_v.append(v[used])
-        new_uv.append(local_uv)
-        new_f[faces] = lf + base
-        base += len(used)
+            uv = c @ vt[:2].T
+        new_v.append(v[gid])
+        new_uv.append(uv)
+        new_f[faces] = lfc + base
+        base += len(gid)
     sv = np.concatenate(new_v)
     suv = np.concatenate(new_uv)
 
