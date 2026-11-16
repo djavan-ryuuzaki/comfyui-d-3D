@@ -624,8 +624,12 @@ def character_quad_remesh(v, f, target_quads, head_scale, hands_scale, head_size
             sel = hands & side
             if sel.sum() < 8:
                 continue
-            r0 = 0.5 * regions.hands_size * regions.width
-            maps.append(_RadialMap(p[sel].mean(0), r0, hands_scale))
+            # The whole hand must sit in the uniform part of the stretch (radius r0). Past r0 the map
+            # compresses radially, so fingertips there got longer quads than the body and Instant Meshes
+            # fused the fingers.
+            c = p[sel].mean(0)
+            r0 = max(0.5 * regions.hands_size * regions.width, 1.05 * float(np.linalg.norm(p[sel] - c, axis=1).max()))
+            maps.append(_RadialMap(c, r0, hands_scale))
             p = maps[-1].forward(p)
     qv, quads = qm.remesh_quads(p.astype(np.float32), f, int(target_quads), float(crease_angle),
                                 int(smooth_iterations), False, True)
@@ -652,8 +656,8 @@ class D3DCharacterQuadRemesh:
                                          "tooltip": "About how many quads (each one is 2 triangles in the GLB)."}),
                 "head_scale": ("FLOAT", {"default": 1.5, "min": 1.0, "max": 3.0, "step": 0.05,
                                          "tooltip": "Quads per unit length on the head relative to the body. 1.5 = about 2x the quads on the head (~30% of the budget on a stylised character)."}),
-                "hands_scale": ("FLOAT", {"default": 1.5, "min": 1.0, "max": 3.0, "step": 0.05,
-                                          "tooltip": "Same for each hand."}),
+                "hands_scale": ("FLOAT", {"default": 2.5, "min": 1.0, "max": 5.0, "step": 0.05,
+                                          "tooltip": "Quads per unit length on each hand relative to the body. Fingers need 2.5 or more to stay separate (2.5 = about 18% of the budget on the hands)."}),
                 "head_size": ("FLOAT", {"default": 0.2, "min": 0.05, "max": 0.5, "step": 0.01}),
                 "hands_size": ("FLOAT", {"default": 0.1, "min": 0.02, "max": 0.3, "step": 0.01}),
                 "smooth_iterations": ("INT", {"default": 2, "min": 0, "max": 10}),

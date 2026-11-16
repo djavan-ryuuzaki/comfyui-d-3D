@@ -5004,16 +5004,16 @@
         "cnr_id": "comfyui-d-3d"
       },
       "widgets_values": [
-        6000,
+        7000,
         1.5,
-        1.5,
+        2.5,
         0.2,
         0.1,
         2,
         0.0,
         "auto"
       ],
-      "title": "Quad Remesh personagem (~6k quads, cabeca/maos mais densas)"
+      "title": "Quad Remesh personagem (~7k quads, cabeca/maos mais densas)"
     },
     {
       "id": 357,
