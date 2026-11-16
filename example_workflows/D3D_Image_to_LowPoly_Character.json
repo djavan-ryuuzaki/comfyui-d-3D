@@ -1,8 +1,8 @@
 {
  "id": "6c0b6f0e-d3d0-4c1a-9a51-0d3d0c4a2a11",
  "revision": 0,
- "last_node_id": 351,
- "last_link_id": 1336,
+ "last_node_id": 355,
+ "last_link_id": 1348,
  "nodes": [
   {
    "id": 91,
@@ -376,7 +376,7 @@
     {
      "name": "mesh",
      "type": "MESH",
-     "link": 1132
+     "link": 1344
     }
    ],
    "outputs": [
@@ -521,7 +521,7 @@
     {
      "name": "mesh",
      "type": "MESH",
-     "link": 935
+     "link": 1341
     },
     {
      "name": "base_color",
@@ -586,7 +586,7 @@
     {
      "name": "mesh",
      "type": "MESH",
-     "link": 900
+     "link": 1340
     },
     {
      "name": "voxel_colors",
@@ -664,7 +664,8 @@
      "type": "INT",
      "links": [
       1185,
-      1186
+      1186,
+      1346
      ]
     }
    ],
@@ -701,7 +702,7 @@
     {
      "name": "mesh",
      "type": "MESH",
-     "link": 1303
+     "link": 1338
     }
    ],
    "outputs": [
@@ -1693,7 +1694,7 @@
     {
      "name": "low_poly",
      "type": "MESH",
-     "link": 1069
+     "link": 1343
     },
     {
      "name": "high_poly",
@@ -1748,7 +1749,7 @@
     {
      "name": "low_poly",
      "type": "MESH",
-     "link": 1066
+     "link": 1342
     },
     {
      "name": "high_poly",
@@ -1920,14 +1921,14 @@
   },
   {
    "id": 186,
-   "type": "DecimateMesh",
+   "type": "D3DCharacterDecimate",
    "pos": [
     2330,
-    -30
+    -170
    ],
    "size": [
     390,
-    90
+    250
    ],
    "flags": {},
    "order": 46,
@@ -1946,22 +1947,26 @@
      "links": [
       1300
      ]
+    },
+    {
+     "name": "info",
+     "type": "STRING",
+     "links": []
     }
    ],
    "properties": {
-    "Node name for S&R": "DecimateMesh",
-    "cnr_id": "comfy-core",
-    "ver": "0.33.0"
+    "Node name for S&R": "D3DCharacterDecimate",
+    "cnr_id": "comfyui-d-3d"
    },
    "widgets_values": [
     12000,
-    "midpoint"
+    12.0,
+    8.0,
+    0.2,
+    0.1,
+    "auto"
    ],
-   "widgets_values_named": {
-    "target_face_count": 12000,
-    "placement_mode": "midpoint"
-   },
-   "title": "Decimate (low-poly 12k tris)"
+   "title": "Decimate personagem (12k, cabeca/maos com mais detalhe)"
   },
   {
    "id": 196,
@@ -1997,12 +2002,7 @@
      "name": "mesh",
      "type": "MESH",
      "links": [
-      900,
-      935,
-      1066,
-      1069,
-      1132,
-      1329
+      1339
      ]
     }
    ],
@@ -2595,7 +2595,7 @@
      "name": "mesh",
      "type": "MESH",
      "links": [
-      1176
+      1347
      ]
     }
    ],
@@ -2616,7 +2616,7 @@
    "type": "MeshToFile3D",
    "pos": [
     3750,
-    800
+    930
    ],
    "size": [
     230,
@@ -2629,7 +2629,7 @@
     {
      "name": "mesh",
      "type": "MESH",
-     "link": 1176
+     "link": 1348
     }
    ],
    "outputs": [
@@ -3543,7 +3543,7 @@
      "name": "output",
      "type": "MESH",
      "links": [
-      1303
+      1337
      ]
     }
    ],
@@ -3576,7 +3576,7 @@
     "Node name for S&R": "MarkdownNote"
    },
    "widgets_values": [
-    "### Topologia em quads (opcional)\n\n`false` (padrao): **DecimateMesh** nativo, 12.000 triangulos.\n\n`true`: **Trellis2 Quad Remesh** (Instant Meshes) com ~6.000 quads. Loops de aresta mais limpos, deformam melhor no rig (ombros, joelhos, dedos). A malha sai triangulada para o GLB, mas com fluxo de quads.\n\nPara ver os quads: **Trellis2 - Preview Quad Mesh** ou **Export Quad Mesh (OBJ)** na saida do Quad Remesh."
+    "### Topologia em quads (opcional)\n\n`false` (padrao): **Decimate personagem** (QEM com mais detalhe na cabeca e maos), 12.000 triangulos.\n\n`true`: **Trellis2 Quad Remesh** (Instant Meshes) com ~6.000 quads. Loops de aresta mais limpos, deformam melhor no rig (ombros, joelhos, dedos). A malha sai triangulada para o GLB, mas com fluxo de quads.\n\nPara ver os quads: **Trellis2 - Preview Quad Mesh** ou **Export Quad Mesh (OBJ)** na saida do Quad Remesh."
    ],
    "title": "Leia: low-poly",
    "color": "#222",
@@ -4763,7 +4763,7 @@
     {
      "name": "mesh",
      "type": "MESH",
-     "link": 1329
+     "link": 1345
     },
     {
      "name": "keep_textures",
@@ -4928,11 +4928,185 @@
     "Node name for S&R": "MarkdownNote"
    },
    "widgets_values": [
-    "# D 3D - Imagem -> personagem low-poly pronto para rig\n\nUma imagem entra, um GLB de personagem sai: Pixal3D / TRELLIS.2 int8 -> malha estanque -> **low-poly 12k** -> normal map + AO assados do high-poly -> metal/rugosidade do TRELLIS -> **albedo QwenTex** -> `output/3d/D3D_char_lowpoly_*.glb`.\n\nTudo com nodes nativos do ComfyUI 0.45+ e do **comfyui-d-3D**. Nao precisa de Blender, GGUF, WTiVo/LODTailor/Bake Forger nem UltraTex.\n\n## Como usar\n1. **Load Image**: frente, T-pose, maos vazias, fundo liso.\n2. **Boolean (Switch to Trellis2)**: `false` = Pixal3D (padrao), `true` = TRELLIS.2.\n3. **Topologia em quads**: `false` = DecimateMesh 12k, `true` = Quad Remesh ~6k quads.\n4. **Albedo: Qwen / TRELLIS**: `true` = QwenTex, `false` = albedo do TRELLIS (mais rapido).\n5. Run.\n\n## Ajustes\n- **RemeshMesh** `solid`, `fill` 20: fecha furos pequenos (faz o papel do WTiVo). 10-20 para furos pequenos, 30-40 para grandes; alto demais fecha capuz e mangas.\n- **Decimate**: 8-15k para personagem com rig; suba para 20k se dedos ou alcas quebrarem.\n- **Texture Resolution** 2048 (4096 para hero asset).\n- **Bake Normal Map** `cage_distance` 0.05; aumente se aparecerem manchas.\n- **Seed da estrutura**: KSampler da estrutura esparsa (56). Mude para outra geracao.\n\n---\nBaseado no template oficial *3d_pixal3d_trellis2_image_to_model* da Comfy-Org (MIT), https://github.com/Comfy-Org/workflow_templates, com o fluxo de personagem inspirado no PixelArtistry 05."
+    "# D 3D - Imagem -> personagem low-poly pronto para rig\n\nUma imagem entra, um GLB de personagem sai: Pixal3D / TRELLIS.2 int8 -> malha estanque -> **low-poly 12k com mais detalhe na cabeca e maos** -> limpeza watertight -> UV com 2x de resolucao na cabeca -> normal map + AO assados do high-poly -> metal/rugosidade do TRELLIS -> **albedo QwenTex** -> metallic limpo -> `output/3d/D3D_char_lowpoly_*.glb`.\n\nTudo com nodes nativos do ComfyUI 0.45+ e do **comfyui-d-3D**. Nao precisa de Blender, GGUF, WTiVo/LODTailor/Bake Forger nem UltraTex.\n\n## Como usar\n1. **Load Image**: frente, T-pose, maos vazias, fundo liso.\n2. **Boolean (Switch to Trellis2)**: `false` = Pixal3D (padrao), `true` = TRELLIS.2.\n3. **Topologia em quads**: `false` = DecimateMesh 12k, `true` = Quad Remesh ~6k quads.\n4. **Albedo: Qwen / TRELLIS**: `true` = QwenTex, `false` = albedo do TRELLIS (mais rapido).\n5. Run.\n\n## Ajustes\n- **RemeshMesh** `solid`, `fill` 20: fecha furos pequenos (faz o papel do WTiVo). 10-20 para furos pequenos, 30-40 para grandes; alto demais fecha capuz e mangas.\n- **Decimate personagem**: 8-15k para personagem com rig; suba para 20k se dedos ou alcas quebrarem. `head_detail`/`hands_detail` controlam quanto do orcamento vai para cabeca e maos.\n- **Texture Resolution** 2048 (4096 para hero asset).\n- **Bake Normal Map** `cage_distance` 0.05; aumente se aparecerem manchas.\n- **Seed da estrutura**: KSampler da estrutura esparsa (56). Mude para outra geracao.\n\n---\nBaseado no template oficial *3d_pixal3d_trellis2_image_to_model* da Comfy-Org (MIT), https://github.com/Comfy-Org/workflow_templates, com o fluxo de personagem inspirado no PixelArtistry 05."
    ],
    "title": "Comece aqui",
    "color": "#222",
    "bgcolor": "#000"
+  },
+  {
+   "id": 352,
+   "type": "D3DMeshCleanup",
+   "pos": [
+    2330,
+    110
+   ],
+   "size": [
+    390,
+    200
+   ],
+   "flags": {},
+   "order": 47,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "mesh",
+     "type": "MESH",
+     "link": 1337
+    }
+   ],
+   "outputs": [
+    {
+     "name": "mesh",
+     "type": "MESH",
+     "links": [
+      1338
+     ]
+    },
+    {
+     "name": "report",
+     "type": "STRING",
+     "links": []
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "D3DMeshCleanup",
+    "cnr_id": "comfyui-d-3d"
+   },
+   "widgets_values": [
+    64,
+    20,
+    1e-05,
+    "warn"
+   ],
+   "title": "Limpeza watertight (antes do Unwrap)"
+  },
+  {
+   "id": 353,
+   "type": "D3DUVTexelBoost",
+   "pos": [
+    1890,
+    900
+   ],
+   "size": [
+    260,
+    300
+   ],
+   "flags": {},
+   "order": 49,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "mesh",
+     "type": "MESH",
+     "link": 1339
+    },
+    {
+     "name": "resolution",
+     "type": "INT",
+     "widget": {
+      "name": "resolution"
+     },
+     "link": 1346
+    }
+   ],
+   "outputs": [
+    {
+     "name": "mesh",
+     "type": "MESH",
+     "links": [
+      1340,
+      1341,
+      1342,
+      1343,
+      1344,
+      1345
+     ]
+    },
+    {
+     "name": "info",
+     "type": "STRING",
+     "links": []
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "D3DUVTexelBoost",
+    "cnr_id": "comfyui-d-3d"
+   },
+   "widgets_values": [
+    2.0,
+    1.3,
+    0.2,
+    0.1,
+    2048,
+    2,
+    "auto"
+   ],
+   "title": "UV Texel Boost (cabeca 2x)"
+  },
+  {
+   "id": 354,
+   "type": "D3DGameMaterial",
+   "pos": [
+    3710,
+    780
+   ],
+   "size": [
+    270,
+    110
+   ],
+   "flags": {},
+   "order": 64,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "mesh",
+     "type": "MESH",
+     "link": 1347
+    }
+   ],
+   "outputs": [
+    {
+     "name": "mesh",
+     "type": "MESH",
+     "links": [
+      1348
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "D3DGameMaterial",
+    "cnr_id": "comfyui-d-3d"
+   },
+   "widgets_values": [
+    0.5,
+    false
+   ],
+   "title": "Material de jogo (metallic / doubleSided)"
+  },
+  {
+   "id": 355,
+   "type": "MarkdownNote",
+   "pos": [
+    2330,
+    330
+   ],
+   "size": [
+    700,
+    200
+   ],
+   "flags": {},
+   "order": 0,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [],
+   "properties": {},
+   "title": "Leia: low-poly v2",
+   "color": "#432",
+   "bgcolor": "#653",
+   "widgets_values": [
+    "### Low-poly v2 (comparacao com o PixelArtistry 05)\n\n- **Decimate personagem**: mesmo QEM do DecimateMesh, mas colapsar na cabeca custa `head_detail` (12x) e nas maos `hands_detail` (8x). Mesmos 12k tris, ~2x mais na cabeca. `head_size` 0.2 = cabeca estilizada; 0.13 = realista. `head_detail` 1 e `hands_detail` 1 = DecimateMesh nativo.\n- **Limpeza watertight**: solda, remove arestas com mais de 2 faces, pedacos soltos, fecha furos ate 64 arestas. `if_not_watertight` = error para barrar GLB com furo.\n- **UV Texel Boost**: reempacota as ilhas do UnwrapMesh com 2x de densidade na cabeca (rosto e cabelo mais nitidos). Todos os bakes e o QwenTex leem esta malha.\n- **Material de jogo**: metallic abaixo de 0.5 vira 0 (pano, pele, couro), doubleSided desligado."
+   ]
   }
  ],
  "links": [
@@ -5153,14 +5327,6 @@
    "IMAGE"
   ],
   [
-   900,
-   196,
-   0,
-   147,
-   0,
-   "MESH"
-  ],
-  [
    904,
    199,
    0,
@@ -5183,14 +5349,6 @@
    164,
    0,
    "IMAGE"
-  ],
-  [
-   935,
-   196,
-   0,
-   210,
-   0,
-   "MESH"
   ],
   [
    940,
@@ -5253,22 +5411,6 @@
    238,
    0,
    196,
-   0,
-   "MESH"
-  ],
-  [
-   1066,
-   196,
-   0,
-   224,
-   0,
-   "MESH"
-  ],
-  [
-   1069,
-   196,
-   0,
-   233,
    0,
    "MESH"
   ],
@@ -5337,14 +5479,6 @@
    "MESH"
   ],
   [
-   1132,
-   196,
-   0,
-   261,
-   0,
-   "MESH"
-  ],
-  [
    1133,
    261,
    0,
@@ -5373,14 +5507,6 @@
    252,
    0,
    282,
-   0,
-   "MESH"
-  ],
-  [
-   1176,
-   260,
-   0,
-   285,
    0,
    "MESH"
   ],
@@ -5769,14 +5895,6 @@
    "BOOLEAN"
   ],
   [
-   1303,
-   328,
-   0,
-   238,
-   0,
-   "MESH"
-  ],
-  [
    1304,
    330,
    0,
@@ -5977,14 +6095,6 @@
    "IMAGE"
   ],
   [
-   1329,
-   196,
-   0,
-   347,
-   0,
-   "MESH"
-  ],
-  [
    1330,
    347,
    0,
@@ -6039,6 +6149,102 @@
    210,
    1,
    "IMAGE"
+  ],
+  [
+   1337,
+   328,
+   0,
+   352,
+   0,
+   "MESH"
+  ],
+  [
+   1338,
+   352,
+   0,
+   238,
+   0,
+   "MESH"
+  ],
+  [
+   1339,
+   196,
+   0,
+   353,
+   0,
+   "MESH"
+  ],
+  [
+   1340,
+   353,
+   0,
+   147,
+   0,
+   "MESH"
+  ],
+  [
+   1341,
+   353,
+   0,
+   210,
+   0,
+   "MESH"
+  ],
+  [
+   1342,
+   353,
+   0,
+   224,
+   0,
+   "MESH"
+  ],
+  [
+   1343,
+   353,
+   0,
+   233,
+   0,
+   "MESH"
+  ],
+  [
+   1344,
+   353,
+   0,
+   261,
+   0,
+   "MESH"
+  ],
+  [
+   1345,
+   353,
+   0,
+   347,
+   0,
+   "MESH"
+  ],
+  [
+   1346,
+   288,
+   0,
+   353,
+   1,
+   "INT"
+  ],
+  [
+   1347,
+   260,
+   0,
+   354,
+   0,
+   "MESH"
+  ],
+  [
+   1348,
+   354,
+   0,
+   285,
+   0,
+   "MESH"
   ]
  ],
  "groups": [
@@ -6083,9 +6289,9 @@
    "title": "Mesh Post-Processing",
    "bounding": [
     1560,
-    -210,
+    -250,
     1500,
-    760
+    800
    ],
    "flags": {}
   },
