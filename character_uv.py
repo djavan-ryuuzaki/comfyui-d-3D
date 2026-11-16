@@ -783,9 +783,9 @@ def _merge_fragments(lab, adj, nf, min_keep=0):
     return lab
 
 
-def character_uv(v, f, resolution=2048, padding=8, head_texel_scale=1.4, hands_texel_scale=1.3,
-                 head_size=0.2, hands_size=0.1, up_axis="auto", front_axis="+Z", max_distortion=0.6):
-    """Returns (vertices split at seams, faces, uv v-up [0,1], info dict)."""
+def body_part_labels(v, f, up_axis="auto", head_size=0.2, hands_size=0.1, front_axis="+Z"):
+    """Weld the mesh and label every face with a body part and side (2 * part + side, part from PART_NAMES).
+    Returns (v, f, face adjacency, _Body, part label per face, part*2+side label per face)."""
     v = np.asarray(v, np.float64)
     f = np.asarray(f, np.int64)
     v, f = _weld(v, f, 1e-7)
@@ -793,8 +793,6 @@ def character_uv(v, f, resolution=2048, padding=8, head_texel_scale=1.4, hands_t
     adj = _face_adjacency(f)
     body = _Body(v, f, up_axis, head_size, hands_size, front_axis)
     lab = body.labels(v, f, adj)
-
-    # final labels: part x side (A/B), then each label is one connected piece without islets
     full = np.full(nf, -1, np.int64)
     for part in range(len(PART_NAMES)):
         faces = np.nonzero(lab == part)[0]
@@ -804,6 +802,27 @@ def character_uv(v, f, resolution=2048, padding=8, head_texel_scale=1.4, hands_t
             full[a] = 2 * part + side
     # straighten the cut lines (no single-triangle teeth), then one connected piece per label
     full = _merge_fragments(_smooth_labels(full, adj, nf, iters=12), adj, nf)
+    return v, f, adj, body, lab, full
+
+
+def body_part_seams(f, adj, full):
+    """Vertex pairs of the edges between faces of different labels (the body-part cut lines)."""
+    a, b = adj
+    cut = full[a] != full[b]
+    fa, fb = f[a[cut]], f[b[cut]]
+    pairs = []
+    for x, y in zip(fa, fb):
+        sh = [int(t) for t in x if t in y]
+        if len(sh) == 2:
+            pairs.append(sorted(sh))
+    return np.unique(np.asarray(pairs, np.int64).reshape(-1, 2), axis=0)
+
+
+def character_uv(v, f, resolution=2048, padding=8, head_texel_scale=1.4, hands_texel_scale=1.3,
+                 head_size=0.2, hands_size=0.1, up_axis="auto", front_axis="+Z", max_distortion=0.6):
+    """Returns (vertices split at seams, faces, uv v-up [0,1], info dict)."""
+    v, f, adj, body, lab, full = body_part_labels(v, f, up_axis, head_size, hands_size, front_axis)
+    nf = len(f)
 
     islands = []
     for key in np.unique(full):
