@@ -9049,3 +9049,11 @@ try:
     NODE_DISPLAY_NAME_MAPPINGS.update(_BRIDGE_NAMES)
 except Exception as _e:
     print(f"comfyui-d-3D: mesh bridge nodes not loaded: {_e}")
+
+# Game-ready low-poly character tools for the native MESH chain (weighted decimate, cleanup, UV texel boost, material).
+try:
+    from .lowpoly_tools import NODE_CLASS_MAPPINGS as _LOWPOLY_NODES, NODE_DISPLAY_NAME_MAPPINGS as _LOWPOLY_NAMES
+    NODE_CLASS_MAPPINGS.update(_LOWPOLY_NODES)
+    NODE_DISPLAY_NAME_MAPPINGS.update(_LOWPOLY_NAMES)
+except Exception as _e:
+    print(f"comfyui-d-3D: low-poly tools not loaded: {_e}")
