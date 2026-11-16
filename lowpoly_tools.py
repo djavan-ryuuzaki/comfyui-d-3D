@@ -3,6 +3,7 @@
 Four nodes that sit around the native DecimateMesh / UnwrapMesh / ApplyTextureToMesh chain:
 
 * D3DCharacterDecimate  - QEM decimation that keeps more triangles on the head (face + hair) and hands.
+* D3DCharacterQuadRemesh - Instant Meshes quads, smaller on the head and hands.
 * D3DMeshCleanup        - weld, drop non-manifold / duplicate / degenerate faces and specks, fill small holes,
                           fix winding, and report (or refuse) a mesh that is not watertight.
 * D3DUVTexelBoost       - repacks the UV islands of an unwrapped mesh so the head and hands get more texels.
@@ -146,9 +147,9 @@ class D3DCharacterDecimate:
                 "mesh": ("MESH", {"tooltip": "High-poly character, usually from RemeshMesh."}),
                 "target_face_count": ("INT", {"default": 12000, "min": 100, "max": 5_000_000, "step": 100,
                                               "tooltip": "Total triangles. The budget is the same; it is only spent differently."}),
-                "head_detail": ("FLOAT", {"default": 12.0, "min": 1.0, "max": 100.0, "step": 0.5,
+                "head_detail": ("FLOAT", {"default": 2.0, "min": 1.0, "max": 100.0, "step": 0.5,
                                           "tooltip": "How much more a collapse on the head (face + hair) costs. 1 = same as the native DecimateMesh."}),
-                "hands_detail": ("FLOAT", {"default": 8.0, "min": 1.0, "max": 100.0, "step": 0.5,
+                "hands_detail": ("FLOAT", {"default": 4.0, "min": 1.0, "max": 100.0, "step": 0.5,
                                            "tooltip": "Same for the hands (the two ends of the arm span)."}),
                 "head_size": ("FLOAT", {"default": 0.2, "min": 0.05, "max": 0.5, "step": 0.01,
                                         "tooltip": "Head height as a fraction of the character height (0.2 suits a stylised head, 0.13 a realistic one)."}),
@@ -223,14 +224,60 @@ def _weld(v, f, eps_rel):
     return v[first], inv.reshape(-1)[f]
 
 
+def _collapse_short_edges(v, f, eps_rel):
+    """Merge the ends of every edge shorter than eps_rel x diagonal (clusters move to their mean).
+
+    UnwrapMesh welds vertices closer than its weld_distance; doing it here first, with a radius at least as
+    large, means the unwrap cannot turn faces into slivers later and open holes the cleanup never saw.
+    """
+    from scipy.sparse import coo_matrix
+    from scipy.sparse.csgraph import connected_components
+
+    diag = float(np.linalg.norm(v.max(0) - v.min(0))) or 1.0
+    eps = eps_rel * diag
+    merged = 0
+    for _ in range(3):
+        e = np.concatenate([f[:, [0, 1]], f[:, [1, 2]], f[:, [2, 0]]], axis=0)
+        short = e[np.linalg.norm(v[e[:, 0]] - v[e[:, 1]], axis=1) < eps]
+        if len(short) == 0:
+            break
+        g = coo_matrix((np.ones(len(short), np.int8), (short[:, 0], short[:, 1])), shape=(len(v), len(v)))
+        n, label = connected_components(g, directed=False)
+        counts = np.bincount(label, minlength=n).astype(np.float64)
+        nv = np.zeros((n, 3))
+        np.add.at(nv, label, v)
+        merged += len(v) - n
+        v = nv / counts[:, None]
+        f = label[f]
+        ok = (f[:, 0] != f[:, 1]) & (f[:, 1] != f[:, 2]) & (f[:, 2] != f[:, 0])
+        f = f[ok]
+    return v, f, merged
+
+
 def _drop_bad_faces(v, f):
     ok = (f[:, 0] != f[:, 1]) & (f[:, 1] != f[:, 2]) & (f[:, 2] != f[:, 0])
     f = f[ok]
     area = _face_areas(v, f)
     scale = float(np.linalg.norm(v.max(0) - v.min(0))) ** 2 or 1.0
     f = f[area > 1e-14 * scale]
-    _, keep = np.unique(np.sort(f, axis=1), axis=0, return_index=True)
-    return f[np.sort(keep)]
+    if len(f) == 0:
+        return f
+    # duplicates: the same triangle wound both ways is a fold (two quads back to back) and both copies go;
+    # copies wound the same way collapse to one
+    order = np.argsort(f, axis=1)
+    even = np.array([1, -1])[((order[:, 0] > order[:, 1]).astype(int) + (order[:, 0] > order[:, 2]) + (order[:, 1] > order[:, 2])) % 2]
+    _, first, inv = np.unique(np.sort(f, axis=1), axis=0, return_index=True, return_inverse=True)
+    inv = inv.reshape(-1)
+    net = np.bincount(inv, weights=even, minlength=len(first))
+    keep_group = net != 0
+    keep = first[keep_group]
+    out = f[np.sort(keep)].copy()
+    # a surviving group keeps the winding of its majority
+    flip_groups = np.zeros(len(first), bool)
+    flip_groups[keep_group] = np.sign(net[keep_group]) != even[first[keep_group]]
+    flip = flip_groups[inv[np.sort(keep)]]
+    out[flip] = out[flip][:, ::-1]
+    return out
 
 
 def _drop_nonmanifold(v, f):
@@ -257,20 +304,51 @@ def _drop_nonmanifold(v, f):
     return f[keep], int(bad_edges.size)
 
 
+def _split_sheets(v, f, sep_rel=5e-4):
+    """Split surfaces that touch along an edge or at a vertex into separate closed sheets (ComfyUI's own
+    _split_touching_sheets), then push each copy of a split vertex a little along its own sheet's normal so
+    UnwrapMesh's weld does not glue them back. Returns (v, f, number of split vertices) or None if unavailable."""
+    try:
+        from comfy_extras.mesh3d.postprocess.qem_decimate import _split_touching_sheets
+    except Exception:
+        return None
+    _, _, _, _, counts = _edge_table(f)
+    if not (counts > 2).any():
+        return v, f, 0
+    nf, src = _split_touching_sheets(torch.from_numpy(v), torch.from_numpy(f))
+    nf = nf.numpy().astype(np.int64)
+    src = src.numpy()
+    nv = v[src]
+    dup = np.bincount(src, minlength=len(v))[src] > 1
+    if dup.any():
+        fn = np.cross(nv[nf[:, 1]] - nv[nf[:, 0]], nv[nf[:, 2]] - nv[nf[:, 0]])
+        vn = np.zeros_like(nv)
+        for k in range(3):
+            np.add.at(vn, nf[:, k], fn)
+        vn /= np.maximum(np.linalg.norm(vn, axis=1, keepdims=True), 1e-20)
+        diag = float(np.linalg.norm(v.max(0) - v.min(0))) or 1.0
+        nv[dup] += vn[dup] * sep_rel * diag
+    return nv, nf, int(dup.sum())
+
+
 def _drop_specks(f, nv, min_faces):
+    """Remove pieces of fewer than min_faces faces. Pieces are joined through shared edges, not shared vertices,
+    so a lone triangle hanging off the surface by its corners also counts as a speck."""
     from scipy.sparse import coo_matrix
     from scipy.sparse.csgraph import connected_components
 
     if len(f) == 0:
         return f, 0
-    rows = np.concatenate([f[:, 0], f[:, 1], f[:, 2]])
-    cols = np.concatenate([f[:, 1], f[:, 2], f[:, 0]])
-    g = coo_matrix((np.ones(len(rows), np.int8), (rows, cols)), shape=(nv, nv))
+    _, face_of, _, inv, counts = _edge_table(f)
+    order = np.argsort(inv, kind="stable")
+    si, sf = inv[order], face_of[order]
+    same = si[1:] == si[:-1]
+    a, b = sf[:-1][same], sf[1:][same]
+    g = coo_matrix((np.ones(len(a), np.int8), (a, b)), shape=(len(f), len(f)))
     _, label = connected_components(g, directed=False)
-    flabel = label[f[:, 0]]
-    sizes = np.bincount(flabel)
-    keep = sizes[flabel] >= min_faces
-    return f[keep], int((sizes[np.unique(flabel)] < min_faces).sum())
+    sizes = np.bincount(label)
+    keep = sizes[label] >= max(min_faces, 1)
+    return f[keep], int((sizes < max(min_faces, 1)).sum())
 
 
 def _boundary_loops(boundary):
@@ -300,8 +378,39 @@ def _boundary_loops(boundary):
     return loops, broken
 
 
+def _ear_clip(v, loop):
+    """Triangulate a boundary loop by cutting the sharpest convex corner first (no centre pole).
+
+    Faces run against the loop direction, so they match the winding of the surrounding faces.
+    """
+    loop = list(loop)
+    p = v[loop]
+    n = np.zeros(3)
+    for k in range(len(loop)):  # Newell normal of the loop
+        a, b = p[k], p[(k + 1) % len(loop)]
+        n += np.array([(a[1] - b[1]) * (a[2] + b[2]), (a[2] - b[2]) * (a[0] + b[0]), (a[0] - b[0]) * (a[1] + b[1])])
+    n /= max(np.linalg.norm(n), 1e-20)
+    tris = []
+    while len(loop) > 3:
+        m = len(loop)
+        best, best_score = 0, None
+        for k in range(m):
+            a, b, c = v[loop[k - 1]], v[loop[k]], v[loop[(k + 1) % m]]
+            d1, d2 = a - b, c - b
+            cosang = np.dot(d1, d2) / max(np.linalg.norm(d1) * np.linalg.norm(d2), 1e-20)
+            convex = np.dot(np.cross(b - a, c - b), n) > 0
+            score = (0 if convex else 1, -cosang)  # convex first, then the sharpest corner
+            if best_score is None or score < best_score:
+                best, best_score = k, score
+        prev, cur, nxt = loop[best - 1], loop[best], loop[(best + 1) % m]
+        tris.append([nxt, cur, prev])
+        loop.pop(best)
+    tris.append([loop[2], loop[1], loop[0]])
+    return tris
+
+
 def _fill_holes(v, f, max_edges):
-    """Fan-fill boundary loops of at most max_edges edges from their centroid."""
+    """Fill boundary loops of at most max_edges edges by ear clipping."""
     e, _, _, inv, counts = _edge_table(f)
     boundary = e[counts[inv] == 1]  # directed as in their face
     if len(boundary) == 0 or max_edges <= 0:
@@ -310,19 +419,29 @@ def _fill_holes(v, f, max_edges):
     new_v, new_f = [], []
     filled, left = 0, broken
     nv = len(v)
+    remap = None
     for loop in loops:
         if len(loop) > max_edges or len(loop) < 3:
             left += 1
             continue
         if len(loop) == 3:
-            new_f.append([loop[2], loop[1], loop[0]])
-        else:
-            c = nv + len(new_v)
-            new_v.append(v[loop].mean(0))
-            for k in range(len(loop)):
-                a, b = loop[k], loop[(k + 1) % len(loop)]
-                new_f.append([b, a, c])
+            p = v[loop]
+            sides = np.linalg.norm(p[[1, 2, 0]] - p, axis=1)
+            area = 0.5 * np.linalg.norm(np.cross(p[1] - p[0], p[2] - p[0]))
+            if area < 1e-3 * sides.max() ** 2:
+                # a slit (T-junction): a triangle there would be a sliver; weld the middle vertex instead
+                k = int(np.argmax(sides))  # longest side runs loop[k] -> loop[k+1]; the middle vertex is opposite
+                mid, a, b = loop[(k + 2) % 3], loop[k], loop[(k + 1) % 3]
+                tgt = a if np.linalg.norm(v[mid] - v[a]) <= np.linalg.norm(v[mid] - v[b]) else b
+                if remap is None:
+                    remap = np.arange(len(v))
+                remap[mid] = tgt
+                filled += 1
+                continue
+        new_f.extend(_ear_clip(v, loop))
         filled += 1
+    if remap is not None:
+        f = remap[f]
     if new_v:
         v = np.concatenate([v, np.asarray(new_v, v.dtype)], axis=0)
     if new_f:
@@ -337,15 +456,25 @@ def _drop_unused(v, f):
     return v[used], remap[f]
 
 
-def cleanup_mesh(v, f, weld_eps_rel=1e-5, min_component_faces=20, max_hole_edges=64, passes=4):
+def cleanup_mesh(v, f, weld_eps_rel=5e-4, min_component_faces=20, max_hole_edges=64, passes=4):
     v = np.asarray(v, np.float64)
     f = np.asarray(f, np.int64)
     n_in = len(f)
-    v, f = _weld(v, f, weld_eps_rel)
-    stats = {"nonmanifold_fixed": 0, "specks": 0, "holes_filled": 0}
+    v, f = _weld(v, f, 1e-7)
+    merged = 0
+    if weld_eps_rel > 0:
+        v, f, merged = _collapse_short_edges(v, f, weld_eps_rel)
+    stats = {"nonmanifold_fixed": 0, "specks": 0, "holes_filled": 0, "merged": merged}
     for _ in range(passes):
         f = _drop_bad_faces(v, f)
-        f, nm = _drop_nonmanifold(v, f)
+        split = _split_sheets(v, f, sep_rel=max(weld_eps_rel, 5e-4))
+        if split is not None and split[2] > 0:
+            v, f, nm = split
+            f = _drop_bad_faces(v, f)
+        else:
+            nm = 0
+        f, nm2 = _drop_nonmanifold(v, f)  # whatever the split could not separate
+        nm += nm2
         f, sp = _drop_specks(f, len(v), min_component_faces)
         v, f, filled, _ = _fill_holes(v, f, max_hole_edges)
         stats["nonmanifold_fixed"] += nm
@@ -371,6 +500,7 @@ def cleanup_mesh(v, f, weld_eps_rel=1e-5, min_component_faces=20, max_hole_edges
         nonmanifold_edges=int((counts > 2).sum()),
     )
     stats["watertight"] = stats["boundary_edges"] == 0 and stats["nonmanifold_edges"] == 0
+    stats["max_valence"] = int(np.bincount(f.reshape(-1)).max()) if len(f) else 0
     return v.astype(np.float32), f, stats
 
 
@@ -386,8 +516,9 @@ class D3DMeshCleanup:
                                            "tooltip": "Fill holes whose border has up to this many edges. 0 = do not fill."}),
                 "min_component_faces": ("INT", {"default": 20, "min": 0, "max": 100000,
                                                 "tooltip": "Remove loose pieces smaller than this (floating specks)."}),
-                "weld_epsilon": ("FLOAT", {"default": 1e-5, "min": 0.0, "max": 0.01, "step": 1e-6,
-                                           "tooltip": "Merge-by-distance radius as a fraction of the mesh diagonal."}),
+                "weld_epsilon": ("FLOAT", {"default": 5e-4, "min": 0.0, "max": 0.01, "step": 1e-5,
+                                           "tooltip": "Merge-by-distance radius as a fraction of the mesh diagonal. Keep it at least "
+                                                      "as large as UnwrapMesh weld_distance (0.0002), or the unwrap can weld slivers into new holes."}),
                 "if_not_watertight": (["warn", "error"], {"default": "warn",
                                                           "tooltip": "error stops the run instead of saving a mesh with holes or non-manifold edges."}),
             },
@@ -413,7 +544,7 @@ class D3DMeshCleanup:
             out_f.append(torch.from_numpy(cf))
             line = (f"faces {s['faces_in']} -> {s['faces_out']} | watertight: {'yes' if s['watertight'] else 'NO'} | "
                     f"non-manifold fixed {s['nonmanifold_fixed']}, holes filled {s['holes_filled']}, "
-                    f"specks removed {s['specks']} | left: {s['boundary_edges']} border edges, "
+                    f"specks removed {s['specks']}, verts merged {s['merged']} | max valence {s['max_valence']} | left: {s['boundary_edges']} border edges, "
                     f"{s['nonmanifold_edges']} non-manifold edges")
             lines.append(line)
             if not s["watertight"]:
@@ -425,6 +556,137 @@ class D3DMeshCleanup:
             raise RuntimeError(f"D3DMeshCleanup: mesh is not watertight.\n{report}\n"
                                "Raise max_hole_edges, or raise RemeshMesh 'fill', or set if_not_watertight = warn.")
         return (_pack_geometry(out_v, out_f), report)
+
+
+# ---------------------------------------------------------------------------------------------- quad remesh
+
+class _RadialMap:
+    """Monotone radial stretch around `center`: x`scale` inside r0, back to identity at r0 * (scale + 1).
+
+    Instant Meshes only does a uniform quad size. Remeshing the stretched shape and mapping the quads back
+    gives smaller quads where the shape was stretched, with no folds since the radial profile is monotone.
+    """
+
+    def __init__(self, center, r0, scale):
+        from scipy.interpolate import PchipInterpolator
+
+        self.c = np.asarray(center, np.float64)
+        r0 = max(float(r0), 1e-6)
+        self.R = r0 * (scale + 1.0)
+        knots_x = [0.0, r0, self.R, 2.0 * self.R]
+        knots_y = [0.0, scale * r0, self.R, 2.0 * self.R]
+        self.rs = np.linspace(0.0, self.R, 4096)
+        self.fs = PchipInterpolator(knots_x, knots_y)(self.rs)
+
+    def _apply(self, p, src, dst):
+        d = p - self.c
+        r = np.linalg.norm(d, axis=1)
+        inside = r < self.R
+        r_new = r.copy()
+        r_new[inside] = np.interp(r[inside], src, dst)
+        return self.c + d * (r_new / np.maximum(r, 1e-12))[:, None]
+
+    def forward(self, p):
+        return self._apply(p, self.rs, self.fs)
+
+    def inverse(self, p):
+        return self._apply(p, self.fs, self.rs)
+
+
+def _load_quad_mesh():
+    try:
+        from . import quad_mesh
+        return quad_mesh
+    except ImportError:
+        import importlib.util
+        import os
+        spec = importlib.util.spec_from_file_location("d3d_quad_mesh", os.path.join(os.path.dirname(__file__), "quad_mesh.py"))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+
+
+def character_quad_remesh(v, f, target_quads, head_scale, hands_scale, head_size, hands_size, up_axis,
+                          smooth_iterations=2, crease_angle=0.0):
+    qm = _load_quad_mesh()
+    v = np.asarray(v, np.float64)
+    regions = _Regions(v, up_axis, head_size, hands_size)
+    vt = torch.from_numpy(v).float()
+    hands = regions.hands(vt).numpy() > 0.5
+    maps = []
+    p = v.copy()
+    if head_scale > 1.0:
+        maps.append(_RadialMap(regions.head_center.numpy(), regions.r, head_scale))
+        p = maps[-1].forward(p)
+    if hands_scale > 1.0:
+        mid = 0.5 * (regions.xmin + regions.xmax)
+        for side in (v[:, regions.lat] < mid, v[:, regions.lat] >= mid):
+            sel = hands & side
+            if sel.sum() < 8:
+                continue
+            r0 = 0.5 * regions.hands_size * regions.width
+            maps.append(_RadialMap(p[sel].mean(0), r0, hands_scale))
+            p = maps[-1].forward(p)
+    qv, quads = qm.remesh_quads(p.astype(np.float32), f, int(target_quads), float(crease_angle),
+                                int(smooth_iterations), False, True)
+    qv, quads = qm.clean_quads(qv, quads)
+    qv = qv.astype(np.float64)
+    for m in reversed(maps):
+        qv = m.inverse(qv)
+    tris = qm.quads_to_triangle_pairs(quads)
+    cent = torch.from_numpy(qv[tris].mean(1)).float()
+    head_share = float((regions.head(cent) > 0.5).float().mean())
+    hands_share = float((regions.hands(cent) > 0.5).float().mean())
+    return qv.astype(np.float32), tris, len(quads), head_share, hands_share
+
+
+class D3DCharacterQuadRemesh:
+    """Instant Meshes quad retopology with smaller quads on the head and hands (native MESH in and out)."""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "mesh": ("MESH", {"tooltip": "Watertight high-poly character, usually from RemeshMesh."}),
+                "target_quads": ("INT", {"default": 6000, "min": 100, "max": 500000, "step": 100,
+                                         "tooltip": "About how many quads (each one is 2 triangles in the GLB)."}),
+                "head_scale": ("FLOAT", {"default": 1.5, "min": 1.0, "max": 3.0, "step": 0.05,
+                                         "tooltip": "Quads per unit length on the head relative to the body. 1.5 = about 2x the quads on the head (~30% of the budget on a stylised character)."}),
+                "hands_scale": ("FLOAT", {"default": 1.5, "min": 1.0, "max": 3.0, "step": 0.05,
+                                          "tooltip": "Same for each hand."}),
+                "head_size": ("FLOAT", {"default": 0.2, "min": 0.05, "max": 0.5, "step": 0.01}),
+                "hands_size": ("FLOAT", {"default": 0.1, "min": 0.02, "max": 0.3, "step": 0.01}),
+                "smooth_iterations": ("INT", {"default": 2, "min": 0, "max": 10}),
+                "crease_angle": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 180.0, "step": 1.0}),
+                "up_axis": (UP_AXES, {"default": "auto"}),
+            },
+            "hidden": {"unique_id": "UNIQUE_ID"},
+        }
+
+    RETURN_TYPES = ("MESH", "STRING")
+    RETURN_NAMES = ("mesh", "info")
+    FUNCTION = "remesh"
+    CATEGORY = "Trellis2Wrapper/lowpoly"
+    DESCRIPTION = ("Quad retopology (Instant Meshes) with denser quads on the head and hands. Output is geometry only, "
+                   "quads stored as triangle pairs; follow it with D3D Mesh Cleanup, which closes the holes Instant Meshes leaves.")
+
+    def remesh(self, mesh, target_quads, head_scale, hands_scale, head_size, hands_size, smooth_iterations,
+               crease_angle, up_axis, unique_id=None):
+        n, item = _batch_items(mesh)
+        out_v, out_f, lines = [], [], []
+        for i in range(n):
+            v, f = item(i)[:2]
+            qv, tris, nq, hs, hd = character_quad_remesh(
+                v.detach().cpu().numpy(), f.detach().cpu().numpy().astype(np.uint32), target_quads,
+                float(head_scale), float(hands_scale), head_size, hands_size, up_axis,
+                smooth_iterations, crease_angle)
+            out_v.append(torch.from_numpy(qv))
+            out_f.append(torch.from_numpy(tris.astype(np.int64)))
+            lines.append(f"{nq} quads | head {100 * hs:.0f}% of the faces, hands {100 * hd:.0f}%")
+        info = "\n".join(lines)
+        logging.info(f"[D3DCharacterQuadRemesh] {info}")
+        _progress_text(unique_id, info)
+        return (_pack_geometry(out_v, out_f), info)
 
 
 # ---------------------------------------------------------------------------------------------- UV texel boost
@@ -496,7 +758,7 @@ class D3DUVTexelBoost:
         return {
             "required": {
                 "mesh": ("MESH", {"tooltip": "Output of UnwrapMesh. Feed the result to every bake and to ApplyTextureToMesh."}),
-                "head_texel_scale": ("FLOAT", {"default": 2.0, "min": 1.0, "max": 6.0, "step": 0.1,
+                "head_texel_scale": ("FLOAT", {"default": 1.4, "min": 1.0, "max": 6.0, "step": 0.1,
                                                "tooltip": "Texel density on the head (face + hair) relative to the body. 2 = twice the resolution."}),
                 "hands_texel_scale": ("FLOAT", {"default": 1.3, "min": 1.0, "max": 6.0, "step": 0.1}),
                 "head_size": ("FLOAT", {"default": 0.2, "min": 0.05, "max": 0.5, "step": 0.01,
@@ -600,12 +862,14 @@ class D3DGameMaterial:
 NODE_CLASS_MAPPINGS = {
     "D3DCharacterDecimate": D3DCharacterDecimate,
     "D3DMeshCleanup": D3DMeshCleanup,
+    "D3DCharacterQuadRemesh": D3DCharacterQuadRemesh,
     "D3DUVTexelBoost": D3DUVTexelBoost,
     "D3DGameMaterial": D3DGameMaterial,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     "D3DCharacterDecimate": "D3D - Character Decimate (head/hands detail)",
     "D3DMeshCleanup": "D3D - Mesh Cleanup (watertight)",
+    "D3DCharacterQuadRemesh": "D3D - Character Quad Remesh (head/hands detail)",
     "D3DUVTexelBoost": "D3D - UV Texel Boost (head/hands)",
     "D3DGameMaterial": "D3D - Game Material (metallic/doubleSided)",
 }
