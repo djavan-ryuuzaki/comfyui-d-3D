@@ -1,8 +1,8 @@
 {
  "id": "6c0b6f0e-d3d0-4c1a-9a51-0d3d0c4a2a11",
  "revision": 0,
- "last_node_id": 355,
- "last_link_id": 1348,
+ "last_node_id": 356,
+ "last_link_id": 1350,
  "nodes": [
   {
    "id": 91,
@@ -1885,7 +1885,7 @@
       1071,
       1273,
       1274,
-      1297
+      1349
      ]
     }
    ],
@@ -1960,8 +1960,8 @@
    },
    "widgets_values": [
     12000,
-    12.0,
-    8.0,
+    2.0,
+    4.0,
     0.2,
     0.1,
     "auto"
@@ -3326,148 +3326,6 @@
    }
   },
   {
-   "id": 324,
-   "type": "D3DNativeMeshToTrimesh",
-   "pos": [
-    1600,
-    -900
-   ],
-   "size": [
-    320,
-    100
-   ],
-   "flags": {},
-   "order": 0,
-   "mode": 0,
-   "inputs": [
-    {
-     "name": "mesh",
-     "type": "MESH",
-     "link": 1297
-    },
-    {
-     "name": "keep_textures",
-     "type": "BOOLEAN",
-     "link": null,
-     "widget": {
-      "name": "keep_textures"
-     }
-    }
-   ],
-   "outputs": [
-    {
-     "name": "trimesh",
-     "type": "TRIMESH",
-     "links": [
-      1298
-     ]
-    }
-   ],
-   "properties": {
-    "Node name for S&R": "D3DNativeMeshToTrimesh",
-    "cnr_id": "comfyui-d-3d"
-   },
-   "widgets_values": [
-    false,
-    0
-   ],
-   "title": "Mesh -> Trimesh"
-  },
-  {
-   "id": 325,
-   "type": "Trellis2QuadRemesh",
-   "pos": [
-    1960,
-    -900
-   ],
-   "size": [
-    340,
-    300
-   ],
-   "flags": {},
-   "order": 0,
-   "mode": 0,
-   "inputs": [
-    {
-     "name": "trimesh",
-     "type": "TRIMESH",
-     "link": 1298
-    }
-   ],
-   "outputs": [
-    {
-     "name": "trimesh",
-     "type": "TRIMESH",
-     "links": [
-      1299
-     ]
-    }
-   ],
-   "properties": {
-    "Node name for S&R": "Trellis2QuadRemesh",
-    "cnr_id": "comfyui-d-3d"
-   },
-   "widgets_values": [
-    6000,
-    0.0,
-    2,
-    false,
-    true,
-    2048,
-    4,
-    true,
-    false
-   ],
-   "title": "Quad Remesh (~6k quads = ~12k tris)"
-  },
-  {
-   "id": 326,
-   "type": "D3DTrimeshToNativeMesh",
-   "pos": [
-    2340,
-    -900
-   ],
-   "size": [
-    320,
-    80
-   ],
-   "flags": {},
-   "order": 0,
-   "mode": 0,
-   "inputs": [
-    {
-     "name": "trimesh",
-     "type": "TRIMESH",
-     "link": 1299
-    },
-    {
-     "name": "keep_textures",
-     "type": "BOOLEAN",
-     "link": null,
-     "widget": {
-      "name": "keep_textures"
-     }
-    }
-   ],
-   "outputs": [
-    {
-     "name": "mesh",
-     "type": "MESH",
-     "links": [
-      1301
-     ]
-    }
-   ],
-   "properties": {
-    "Node name for S&R": "D3DTrimeshToNativeMesh",
-    "cnr_id": "comfyui-d-3d"
-   },
-   "widgets_values": [
-    false
-   ],
-   "title": "Trimesh -> Mesh"
-  },
-  {
    "id": 327,
    "type": "PrimitiveBoolean",
    "pos": [
@@ -3526,7 +3384,7 @@
     {
      "name": "on_true",
      "type": "MESH",
-     "link": 1301,
+     "link": 1350,
      "shape": 7
     },
     {
@@ -3576,7 +3434,7 @@
     "Node name for S&R": "MarkdownNote"
    },
    "widgets_values": [
-    "### Topologia em quads (opcional)\n\n`false` (padrao): **Decimate personagem** (QEM com mais detalhe na cabeca e maos), 12.000 triangulos.\n\n`true`: **Trellis2 Quad Remesh** (Instant Meshes) com ~6.000 quads. Loops de aresta mais limpos, deformam melhor no rig (ombros, joelhos, dedos). A malha sai triangulada para o GLB, mas com fluxo de quads.\n\nPara ver os quads: **Trellis2 - Preview Quad Mesh** ou **Export Quad Mesh (OBJ)** na saida do Quad Remesh."
+    "### Topologia em quads (opcional)\n\n`false` (padrao): **Decimate personagem** (QEM com mais detalhe na cabeca e maos), 12.000 triangulos.\n\n`true`: **Quad Remesh personagem** (Instant Meshes) com ~6.000 quads, menores na cabeca e nas maos (`head_scale` 1.5 ~ 30% do orcamento na cabeca; 1.0 = quads uniformes). Loops de aresta mais limpos, deformam melhor no rig (ombros, joelhos, dedos). A malha sai triangulada para o GLB, mas com fluxo de quads.\n\nOs furos que o Instant Meshes deixa sao fechados pela **Limpeza watertight** logo depois do switch."
    ],
    "title": "Leia: low-poly",
    "color": "#222",
@@ -4976,7 +4834,7 @@
    "widgets_values": [
     64,
     20,
-    1e-05,
+    0.0005,
     "warn"
    ],
    "title": "Limpeza watertight (antes do Unwrap)"
@@ -5034,7 +4892,7 @@
     "cnr_id": "comfyui-d-3d"
    },
    "widgets_values": [
-    2.0,
+    1.4,
     1.3,
     0.2,
     0.1,
@@ -5042,7 +4900,7 @@
     2,
     "auto"
    ],
-   "title": "UV Texel Boost (cabeca 2x)"
+   "title": "UV Texel Boost (cabeca 1.4x)"
   },
   {
    "id": 354,
@@ -5105,8 +4963,59 @@
    "color": "#432",
    "bgcolor": "#653",
    "widgets_values": [
-    "### Low-poly v2 (comparacao com o PixelArtistry 05)\n\n- **Decimate personagem**: mesmo QEM do DecimateMesh, mas colapsar na cabeca custa `head_detail` (12x) e nas maos `hands_detail` (8x). Mesmos 12k tris, ~2x mais na cabeca. `head_size` 0.2 = cabeca estilizada; 0.13 = realista. `head_detail` 1 e `hands_detail` 1 = DecimateMesh nativo.\n- **Limpeza watertight**: solda, remove arestas com mais de 2 faces, pedacos soltos, fecha furos ate 64 arestas. `if_not_watertight` = error para barrar GLB com furo.\n- **UV Texel Boost**: reempacota as ilhas do UnwrapMesh com 2x de densidade na cabeca (rosto e cabelo mais nitidos). Todos os bakes e o QwenTex leem esta malha.\n- **Material de jogo**: metallic abaixo de 0.5 vira 0 (pano, pele, couro), doubleSided desligado."
+    "### Low-poly v2 (comparacao com o PixelArtistry 05)\n\n- **Decimate personagem**: mesmo QEM do DecimateMesh, mas colapsar na cabeca custa `head_detail` (2x) e nas maos `hands_detail` (4x). Mesmos 12k tris. O rosto ja tem muita curvatura, entao pouco peso basta: 12x deixou ~55% na cabeca; a meta e 30-35%. `head_size` 0.2 = cabeca estilizada; 0.13 = realista. `head_detail` 1 e `hands_detail` 1 = DecimateMesh nativo.\n- **Limpeza watertight**: solda, remove arestas com mais de 2 faces, pedacos soltos, fecha furos ate 64 arestas sem polo central, junta vertices mais proximos que `weld_epsilon` (5e-4, maior que o weld do UnwrapMesh, para o unwrap nao abrir furos depois). `if_not_watertight` = error para barrar GLB com furo.\n- **UV Texel Boost**: reempacota as ilhas do UnwrapMesh com 1.4x de densidade na cabeca (2x tirou resolucao demais do corpo) (rosto e cabelo mais nitidos). Todos os bakes e o QwenTex leem esta malha.\n- **Material de jogo**: metallic abaixo de 0.5 vira 0 (pano, pele, couro), doubleSided desligado."
    ]
+  },
+  {
+   "id": 356,
+   "type": "D3DCharacterQuadRemesh",
+   "pos": [
+    1960,
+    -900
+   ],
+   "size": [
+    380,
+    300
+   ],
+   "flags": {},
+   "order": 46,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "mesh",
+     "type": "MESH",
+     "link": 1349
+    }
+   ],
+   "outputs": [
+    {
+     "name": "mesh",
+     "type": "MESH",
+     "links": [
+      1350
+     ]
+    },
+    {
+     "name": "info",
+     "type": "STRING",
+     "links": []
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "D3DCharacterQuadRemesh",
+    "cnr_id": "comfyui-d-3d"
+   },
+   "widgets_values": [
+    6000,
+    1.5,
+    1.5,
+    0.2,
+    0.1,
+    2,
+    0.0,
+    "auto"
+   ],
+   "title": "Quad Remesh personagem (~6k quads, cabeca/maos mais densas)"
   }
  ],
  "links": [
@@ -5847,43 +5756,11 @@
    "MESH"
   ],
   [
-   1297,
-   241,
-   0,
-   324,
-   0,
-   "MESH"
-  ],
-  [
-   1298,
-   324,
-   0,
-   325,
-   0,
-   "TRIMESH"
-  ],
-  [
-   1299,
-   325,
-   0,
-   326,
-   0,
-   "TRIMESH"
-  ],
-  [
    1300,
    186,
    0,
    328,
    0,
-   "MESH"
-  ],
-  [
-   1301,
-   326,
-   0,
-   328,
-   1,
    "MESH"
   ],
   [
@@ -6244,6 +6121,22 @@
    0,
    285,
    0,
+   "MESH"
+  ],
+  [
+   1349,
+   241,
+   0,
+   356,
+   0,
+   "MESH"
+  ],
+  [
+   1350,
+   356,
+   0,
+   328,
+   1,
    "MESH"
   ]
  ],
